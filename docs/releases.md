@@ -4,29 +4,17 @@
 
 `npm run desktop:build` produces an Apple Silicon macOS app bundle and DMG on this machine. The configured minimum macOS version is 12.0. The deliverable is ad-hoc signed, without Developer ID signing or notarization; users may need to explicitly approve it in macOS Privacy & Security. No Developer ID signing or notarization is claimed.
 
-`releases/` contains the disk image, an application ZIP, a complete source ZIP and checksums. Development tools and test data are excluded from the source archive. `Margin.app` can be copied to Applications without installing Node.js, Rust or SQLite separately.
+`releases/` retains the current app, disk image and checksums. The GitHub release also includes an application ZIP and a complete source ZIP. Development tools and test data are excluded from the source archive. `Margin.app` can be copied to Applications without installing Node.js, Rust or SQLite separately.
 
 Windows x64 NSIS/MSI and Intel macOS release jobs are configured. They have not run locally and must pass on the appropriate runners before those installers can be treated as verified. GitHub Actions creates a draft prerelease, so a maintainer can inspect the outputs before publishing them. This project has no app-store publishing setup.
 
 ## GitHub status
 
-The first deliveries were local. The 0.3.0 upload is prepared as a private repository, with source in Git and verified installer/source archives attached as release assets. Local databases, exports, build output, tools and signing credentials are excluded by .gitignore. All source, documentation, icons, migrations, tests and workflow files are preserved locally.
+Published releases are available at [GitHub Releases](https://github.com/parthapatel114-rgb/margin/releases). Version 0.4.0 includes the locally verified Apple Silicon macOS DMG and app ZIP, a source archive and SHA-256 checksums. The installer is ad-hoc signed, not Developer ID signed or notarized. Windows and Intel macOS binaries are not included in this release.
 
-From the source repository, after authenticating with GitHub CLI:
+Local databases, exports, build output, tools and signing credentials are excluded by .gitignore. Source archives come from the release commit, without local tools or study data.
 
-```sh
-gh auth login
-gh repo create margin-study --private --source=. --remote=origin --push
-```
-
-Inspect the first Check and package workflow. Once it passes, create a version tag to prepare draft installers:
-
-```sh
-git tag v0.3.0
-git push origin v0.3.0
-```
-
-Review the draft release and its platform artifacts before publishing it. For signed releases, configure platform signing credentials using [Tauri’s distribution guides](https://v2.tauri.app/distribute/) and update the release workflow; never commit certificates, passwords or API keys.
+The tag workflow can prepare draft builds for other platforms; inspect their checks and artifacts before publishing them. For signed releases, configure platform signing credentials using [Tauri’s distribution guides](https://v2.tauri.app/distribute/) and update the release workflow; never commit certificates, passwords or API keys.
 
 ## 0.2.0
 
@@ -38,4 +26,4 @@ Compact study workspace and first-session choices; optional intentions and daily
 
 ## 0.4.0
 
-A local visual and recovery revision: study-ledger typography and layout; three Carbon and three Paper palettes; bundled Source Serif 4 / Source Sans 3; clearer inline validation, protected drafts, and safe refresh/retry actions. No timer mode, history/statistics function, backup format or database schema is removed or changed. macOS menu Quit uses the normal close-request path to protect unsaved input. Native builds now invalidate embedded UI assets after frontend changes. Local build verification is recorded in verification.md; the existing GitHub 0.3.0 release is separate from this local build.
+A local visual and recovery revision: study-ledger typography and layout; three Carbon and three Paper palettes; bundled Source Serif 4 / Source Sans 3; clearer inline validation, protected drafts, and safe refresh/retry actions. No timer mode, history/statistics function, backup format or database schema is removed or changed. macOS menu Quit uses the normal close-request path to protect unsaved input. Native builds now invalidate embedded UI assets after frontend changes. Verification is recorded in verification.md. The 0.4.0 GitHub release contains the verified Apple Silicon build; other platform binaries remain outside the verified release scope.

@@ -32,7 +32,7 @@ Choose a subject and a study type, then start. Reviewing calculus and practicing
 
 ## Install
 
-The local release folder contains an ad-hoc-signed Apple Silicon macOS application and disk image. Open the disk image and drag Margin to Applications. It runs without Node.js, Rust or a separate database installation. macOS 12 or newer is the configured minimum; the native build has been exercised on Apple Silicon macOS.
+Download the [Margin 0.4.0 Apple Silicon macOS installer](https://github.com/parthapatel114-rgb/margin/releases/download/v0.4.0/Margin_0.4.0_macOS_arm64.dmg) or choose the app ZIP from [the release page](https://github.com/parthapatel114-rgb/margin/releases/tag/v0.4.0). Open the disk image and drag Margin to Applications. It runs without Node.js, Rust or a separate database installation. macOS 12 or newer is the configured minimum; the native build has been exercised on Apple Silicon macOS.
 
 macOS builds use an ad-hoc signature for local bundle integrity. They are not Developer ID signed or notarized. macOS may block them until you explicitly approve the app in Privacy & Security. Do not treat them as signed releases.
 
