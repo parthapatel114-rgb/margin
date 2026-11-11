@@ -8,10 +8,7 @@ Choose a subject and a study type, then start. Reviewing calculus and practicing
 
 <p align="center"><img src="docs/screenshots/0.4/today-carbon.png" alt="Margin 0.4 Today workspace in the Carbon and Fern theme" width="880"></p>
 
-<details>
 
-
-</details>
 
 ## What it does
 
