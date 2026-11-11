@@ -9,10 +9,7 @@ Choose a subject and a study type, then start. Reviewing calculus and practicing
 <p align="center"><img src="docs/screenshots/0.4/today-carbon.png" alt="Margin 0.4 Today workspace in the Carbon and Fern theme" width="880"></p>
 
 <details>
-<summary>Light theme and appearance options</summary>
 
-<p align="center"><img src="docs/screenshots/0.4/today-paper.png" alt="Margin 0.4 Today workspace in the Paper and Olive theme" width="880"></p>
-<p align="center"><img src="docs/screenshots/0.4/themes.png" alt="Margin appearance settings with three Carbon themes, three Paper themes and three font choices" width="880"></p>
 
 </details>
 
