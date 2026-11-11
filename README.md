@@ -56,10 +56,6 @@ Choose Week, Month, Year, All time or a custom range. Filter by subject and stud
 
 Statistics use finished sessions. Today also includes the current timer. Active intervals are split at day and hour boundaries, so a session across midnight or a pause contributes only its actual time to each bucket. Calendar views use the computer’s current time zone; changing zones can move history between days without changing elapsed totals. Original recording zones are preserved.
 
-<p align="center"><img src="docs/screenshots/0.4/statistics.png" alt="Margin 0.4 statistics overview in the Paper and Olive theme" width="880"></p>
-
-Screenshots show the actual macOS application using an isolated UI-verification database. Test sessions are not included in an installed app or the source repository.
-
 The 0.4 interface uses a restrained study-ledger layout, Source Serif 4 headings and Source Sans 3 body text. Timer drafts stay in the window when navigating; changed entry forms ask before discarding. Field errors identify how to recover, and native failures offer a saved-state refresh without automatically repeating a write. See [the design tokens and state handling](docs/redesign-0.4.md).
 
 The optional daily target is set from Today. Progress uses actual recorded study time; edit it or disable it from the same control. The shared date picker supports presets, reversed range selection, direct date entry and keyboard arrows, Home/End and Page Up/Down.
