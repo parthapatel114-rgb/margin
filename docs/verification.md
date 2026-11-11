@@ -75,3 +75,20 @@ The packaged 0.2.0 release was opened successfully against the normal applicatio
 Not verified in this pass: 200% text zoom, RTL/pseudo-localized strings, full VoiceOver operation, every theme/font/state combination, Windows/Intel macOS runtime or hardware sleep/wake. The automated timekeeping tests simulate timestamp advancement and restart.
 
 The packaged 0.3.0 app passed strict deep codesign verification, and its DMG passed `hdiutil verify`. The canonical release was reopened successfully. Against a consistent snapshot immediately before app replacement, all rows in sessions, subjects, study_types and settings were unchanged: zero sessions, zero subjects, four study types and eleven settings. The normal database was already at schema 4 when this final replacement check began; the populated 3→4 migration claim is therefore based on the dedicated Rust migration test, not an observed production transition. No Preview records entered the normal database.
+
+## 0.4.0 ledger interface
+
+Verified on Apple Silicon macOS, November 11, 2026. This release changes the interface and error/draft handling while retaining the existing study functions and schema 4.
+
+- Strict TypeScript, ESLint, frontend build, native release build, Rust formatting and Clippy with warnings denied pass.
+- 30 JavaScript tests pass in each configured time zone (America/New_York, UTC, Asia/Kathmandu, Australia/Lord_Howe). Nine new cases cover malformed, nonfinite, future and invalid manual-entry dates/durations.
+- 26 Rust tests pass; the persistence, timer and backup cases remain intact.
+- 180 declared semantic color pairs pass the 4.5:1 text / 3:1 control, focus and chart thresholds. These are token checks, not a pixel audit or custom subject-color guarantee.
+- Native checks cover six new themes, three font preferences, first run, populated views, manual validation and retained drafts, Add time through first subject creation, all three monthly recap panels, timer Start/Pause/mini Resume/Finish with intention, and fullscreen Escape.
+- Window close and macOS menu Cmd-Q ask about a prepared draft. Cancel retains it; confirmed discard exits. The permission for destroying an accepted window is scoped to main/mini. Dock Quit and force quit input-draft recovery are outside the verified claim.
+- Approximately 320 CSS px layouts were inspected. A temporary German/RTL build at 200% root text size verified unbroken calendar dates, stacked full date inputs, reachable dialog actions and mirrored day arrows. This is not actual browser zoom. The final HTML is English, with no direction override, stress script or enlarged root size.
+- A native embed-cache issue found during QA is fixed by watching dist in build.rs. The final installed bundle was opened and visually confirmed to show the fresh English interface at normal size.
+- Before updating the canonical app, a consistent production SQLite backup was made. The pre-upgrade database had zero sessions/subjects/segments, four study types, eleven settings and one timer runtime row. After opening 0.4.0, study tables and timer runtime were unchanged, the selected font was retained, and the only observed settings difference was a theme selection while the app was in use. No preview records entered production. Schema remains 4; integrity_check returns ok.
+- Release 0.4.0 passes strict deep codesign verification with an ad-hoc signature; its DMG passes hdiutil verification. It is not Developer ID signed or notarized.
+
+The detailed findings and verification boundaries are in ui-review.md. No 0.4.0 GitHub release was published as part of this local redesign.

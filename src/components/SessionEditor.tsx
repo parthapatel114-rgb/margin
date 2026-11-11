@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Dialog } from "./Dialog";
+import { Dialog, Confirm } from "./Dialog";
+import { InlineError } from "./Feedback";
+import { sessionInputErrors } from "../lib/validation";
 import { elapsed } from "../lib/analytics";
 import {
   timeZone,
@@ -45,19 +47,35 @@ export function SessionEditor({
   const [minutes, setMinutes] = useState(initialDuration);
   const [note, setNote] = useState(session?.note ?? "");
   const [error, setError] = useState("");
+  const [errors, setErrors] = useState<{ start?: string; minutes?: string }>(
+    {},
+  );
+  const [discard, setDiscard] = useState(false);
+  const [original] = useState({ subject, studyType, start, minutes, note });
+  const dirty =
+    JSON.stringify(original) !==
+    JSON.stringify({ subject, studyType, start, minutes, note });
+  function requestClose() {
+    if (busy) return;
+    if (dirty) setDiscard(true);
+    else onClose();
+  }
   async function save(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     const duration = Math.round(Number(minutes) * 60000);
     const startedAt = +new Date(start);
-    if (
-      !subject ||
-      !Number.isFinite(startedAt) ||
-      !Number.isFinite(duration) ||
-      duration <= 0
-    ) {
-      setError("Choose a subject, date and positive duration.");
+    const next = sessionInputErrors(start, minutes, Date.now());
+    setErrors(next);
+    if (!subject || !studyType || Object.keys(next).length) {
+      requestAnimationFrame(() =>
+        document
+          .getElementById(next.start ? "session-start" : "session-duration")
+          ?.focus(),
+      );
+      if (!subject || !studyType) setError("Choose a subject and study type.");
       return;
     }
+    setError("");
     let result;
     if (
       session &&
@@ -85,97 +103,142 @@ export function SessionEditor({
         expectedUpdatedAt: session?.updatedAt ?? null,
       });
     if (result) onClose();
+    else
+      setError(
+        "This change wasn’t confirmed. Your input is kept; refresh the saved data, then try Save again.",
+      );
   }
   return (
-    <Dialog
-      title={session ? "Edit session" : "Add study time"}
-      onClose={onClose}
-    >
-      <form onSubmit={save} className="form">
-        <label>
-          Subject
-          <select
-            value={subject}
-            required
-            onChange={(e) => setSubject(e.target.value)}
-          >
-            <option value="" disabled>
-              Choose a subject
-            </option>
-            {subjects
-              .filter((s) => !s.archived || s.id === session?.subjectId)
-              .map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                  {s.archived ? " (archived)" : ""}
-                </option>
-              ))}
-          </select>
-        </label>
-        <label>
-          Study type
-          <select
-            value={studyType}
-            required
-            onChange={(e) => setStudyType(e.target.value)}
-          >
-            {studyTypes
-              .filter((t) => !t.archived || t.id === session?.studyTypeId)
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-          </select>
-        </label>
-        <div className="form-columns">
+    <>
+      <Dialog
+        title={session ? "Edit session" : "Add study time"}
+        onClose={requestClose}
+      >
+        <form onSubmit={save} className="form" noValidate>
           <label>
-            Start time
-            <input
-              type="datetime-local"
-              value={start}
+            Subject
+            <select
+              value={subject}
               required
-              onChange={(e) => setStart(e.target.value)}
-            />
+              onChange={(e) => setSubject(e.target.value)}
+            >
+              <option value="" disabled>
+                Choose a subject
+              </option>
+              {subjects
+                .filter((s) => !s.archived || s.id === session?.subjectId)
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                    {s.archived ? " (archived)" : ""}
+                  </option>
+                ))}
+            </select>
           </label>
           <label>
-            Study minutes
-            <input
-              type="number"
-              min="0.001"
-              step="0.001"
-              value={minutes}
+            Study type
+            <select
+              value={studyType}
               required
-              onChange={(e) => setMinutes(e.target.value)}
+              onChange={(e) => setStudyType(e.target.value)}
+            >
+              {studyTypes
+                .filter((t) => !t.archived || t.id === session?.studyTypeId)
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <div className="form-columns">
+            <label>
+              Start time
+              <input
+                type="datetime-local"
+                id="session-start"
+                value={start}
+                required
+                aria-invalid={!!errors.start}
+                aria-describedby={errors.start ? "edit-start-error" : undefined}
+                onChange={(e) => {
+                  setStart(e.target.value);
+                  setErrors({});
+                }}
+              />
+              {errors.start && (
+                <InlineError id="edit-start-error">{errors.start}</InlineError>
+              )}
+            </label>
+            <label>
+              Study minutes
+              <input
+                type="number"
+                id="session-duration"
+                min="0.001"
+                step="0.001"
+                value={minutes}
+                required
+                aria-invalid={!!errors.minutes}
+                aria-describedby={
+                  errors.minutes ? "edit-duration-error" : undefined
+                }
+                onChange={(e) => {
+                  setMinutes(e.target.value);
+                  setErrors({});
+                }}
+              />
+              {errors.minutes && (
+                <InlineError id="edit-duration-error">
+                  {errors.minutes}
+                </InlineError>
+              )}
+            </label>
+          </div>
+          <p className="hint">
+            {timeZone()}.{" "}
+            {session
+              ? "Changing the time replaces pause intervals with one continuous manual entry."
+              : "The session must end in the past and must not overlap another session."}
+          </p>
+          <label>
+            Note
+            <textarea
+              maxLength={2000}
+              rows={3}
+              value={note}
+              placeholder="e.g. Recursion practice"
+              onChange={(e) => setNote(e.target.value)}
             />
           </label>
-        </div>
-        <p className="hint">
-          {timeZone()}.{" "}
-          {session
-            ? "Changing the time replaces pause intervals with one continuous manual entry."
-            : "The session must end in the past and must not overlap another session."}
-        </p>
-        <label>
-          Note <span className="muted">(optional)</span>
-          <textarea
-            maxLength={2000}
-            rows={3}
-            value={note}
-            placeholder="e.g. Recursion practice"
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </label>
-        {error && <p role="alert">{error}</p>}
-        <footer>
-          <button type="button" className="secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="primary" disabled={busy || !subject}>
-            Save session
-          </button>
-        </footer>
-      </form>
-    </Dialog>
+          {error && <InlineError>{error}</InlineError>}
+          <footer>
+            <button
+              type="button"
+              className="secondary"
+              onClick={requestClose}
+              disabled={busy}
+            >
+              Cancel
+            </button>
+            <button className="primary" disabled={busy || !subject}>
+              {busy ? "Saving…" : "Save session"}
+            </button>
+          </footer>
+        </form>
+      </Dialog>
+      {discard && (
+        <Confirm
+          title="Discard your changes?"
+          label="Discard changes"
+          busy={busy}
+          onClose={() => setDiscard(false)}
+          onConfirm={onClose}
+        >
+          Your saved records stay as they are. Go back to keep editing, or
+          discard this draft.
+        </Confirm>
+      )}
+    </>
   );
 }

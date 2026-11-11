@@ -10,17 +10,22 @@ export function useStudyStore() {
       : "Open Margin as a desktop app with npm run dev. Study data is only available in the native application.",
   );
   const [busy, setBusy] = useState(false);
+  const [busySince, setBusySince] = useState(0);
   const accept = useCallback(
     (s: Snapshot) => setData((p) => (p && p.revision > s.revision ? p : s)),
     [],
   );
-  const refresh = useCallback(async () => {
-    try {
-      accept(await invoke<Snapshot>("snapshot"));
-    } catch (e) {
-      setError(String(e));
-    }
-  }, [accept]);
+  const refresh = useCallback(
+    async (clearError = false) => {
+      try {
+        accept(await invoke<Snapshot>("snapshot"));
+        if (clearError) setError("");
+      } catch (e) {
+        setError(String(e));
+      }
+    },
+    [accept],
+  );
   useEffect(() => {
     if (!isTauri()) return;
     let disposed = false;
@@ -49,13 +54,14 @@ export function useStudyStore() {
   const mutate = useCallback(
     async (command: Command) => {
       setBusy(true);
+      setBusySince(Date.now());
       try {
         const result = await invoke<Snapshot>("mutate", { command });
         accept(result);
         return result;
       } catch (e) {
-        setError(String(e));
         await refresh();
+        setError(String(e));
         return null;
       } finally {
         setBusy(false);
@@ -63,7 +69,7 @@ export function useStudyStore() {
     },
     [accept, refresh],
   );
-  return { data, error, setError, busy, mutate, refresh };
+  return { data, error, setError, busy, busySince, mutate, refresh };
 }
 export function useClock() {
   const [now, setNow] = useState(Date.now);

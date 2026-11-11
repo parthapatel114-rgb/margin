@@ -291,7 +291,44 @@ fn csv(b: &Backup) -> String {
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Route menu Quit through the same close request as the window button,
+    // allowing the webview to protect an unsaved input draft.
+    static MAIN_CLOSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     tauri::Builder::default()
+        .menu(|app| {
+            let menu = tauri::menu::Menu::default(app)?;
+            // The macOS predefined Quit terminates directly, bypassing
+            // ExitRequested. Keep the standard menu, replacing only that item.
+            #[cfg(target_os = "macos")]
+            for item in menu.items()? {
+                if let Some(submenu) = item.as_submenu() {
+                    for (index, child) in submenu.items()?.iter().enumerate() {
+                        if let Some(predefined) = child.as_predefined_menuitem() {
+                            let text = predefined.text()?;
+                            if text.starts_with("Quit ") || text == "Quit" {
+                                let quit = tauri::menu::MenuItem::with_id(
+                                    app,
+                                    "margin_quit",
+                                    text,
+                                    true,
+                                    Some("CmdOrCtrl+Q"),
+                                )?;
+                                submenu.remove_at(index)?;
+                                submenu.insert(&quit, index)?;
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(menu)
+        })
+        .on_menu_event(|app, event| {
+            if event.id().as_ref() == "margin_quit" {
+                if let Some(main) = app.get_webview_window("main") {
+                    let _ = main.close();
+                }
+            }
+        })
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             let _ = show_main(app.clone());
         }))
@@ -344,6 +381,7 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                MAIN_CLOSED.store(true, std::sync::atomic::Ordering::Relaxed);
                 window.app_handle().exit(0);
             }
         })
@@ -354,6 +392,16 @@ pub fn run() {
             show_main,
             data_action
         ])
-        .run(tauri::generate_context!())
-        .expect("Margin could not start. Your study data has not been reset.");
+        .build(tauri::generate_context!())
+        .expect("Margin could not start. Your study data has not been reset.")
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                if !MAIN_CLOSED.load(std::sync::atomic::Ordering::Relaxed) {
+                    if let Some(main) = app.get_webview_window("main") {
+                        api.prevent_exit();
+                        let _ = main.close();
+                    }
+                }
+            }
+        });
 }

@@ -12,6 +12,7 @@ import {
   type DateRange,
 } from "../lib/dates";
 import { Dialog } from "./Dialog";
+import { InlineError } from "./Feedback";
 
 export function MonthCalendar({
   month,
@@ -51,8 +52,10 @@ export function MonthCalendar({
   }, [month]);
   function move(e: React.KeyboardEvent<HTMLButtonElement>, at: number) {
     let next: number;
-    if (e.key === "ArrowLeft") next = addDays(at, -1);
-    else if (e.key === "ArrowRight") next = addDays(at, 1);
+    const rtl =
+      root.current && getComputedStyle(root.current).direction === "rtl";
+    if (e.key === "ArrowLeft") next = addDays(at, rtl ? 1 : -1);
+    else if (e.key === "ArrowRight") next = addDays(at, rtl ? -1 : 1);
     else if (e.key === "ArrowUp") next = addDays(at, -7);
     else if (e.key === "ArrowDown") next = addDays(at, 7);
     else if (e.key === "Home")
@@ -273,10 +276,10 @@ export function DateRangePicker({
             </div>
           </div>
           {touched && !validDraft(draft, dayKey(now)) && (
-            <p id={errorId} className="field-error" role="alert">
+            <InlineError id={errorId}>
               Use valid dates in YYYY-MM-DD format, through today. Choose a
               start date before an end date.
-            </p>
+            </InlineError>
           )}
           <footer>
             <button

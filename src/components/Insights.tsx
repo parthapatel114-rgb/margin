@@ -4,7 +4,6 @@ import {
   ChevronLeft,
   ChevronRight,
   BookOpen,
-  BarChart3,
   CalendarDays,
 } from "lucide-react";
 import {
@@ -32,6 +31,7 @@ import { MODE_NAMES } from "../lib/timer";
 import type { Session, Subject, HistoryFilter } from "../lib/types";
 import { Dialog } from "./Dialog";
 import { DateRangePicker, MonthCalendar } from "./Calendar";
+import { EmptyLedger } from "./Feedback";
 
 function SubjectBreakdown({
   data,
@@ -359,7 +359,7 @@ export function Insights({
       {view === "overview" ? (
         data.total === 0 ? (
           <section className="stats-empty panel">
-            <BarChart3 size={28} />
+            <EmptyLedger />
             <h2>
               {finished.length
                 ? "No sessions match these filters"

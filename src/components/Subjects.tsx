@@ -3,6 +3,7 @@ import { Archive, RotateCcw, Trash2 } from "lucide-react";
 import { Dialog, Confirm } from "./Dialog";
 import type { Mutate, Subject } from "../lib/types";
 import { COLORS } from "../lib/palette";
+import { InlineError } from "./Feedback";
 export function Subjects({
   subjects,
   usedIds,
@@ -25,9 +26,22 @@ export function Subjects({
   const [color, setColor] = useState(COLORS[0]);
   const [deleting, setDeleting] = useState<Subject | null>(null);
   const [removing, setRemoving] = useState<Subject | null>(null);
+  const [error, setError] = useState("");
+  const [discard, setDiscard] = useState(false);
+  function requestClose() {
+    if (
+      name.trim() &&
+      (!editing || name !== editing.name || color !== editing.color)
+    )
+      setDiscard(true);
+    else onClose();
+  }
   return (
     <>
-      <Dialog title={studyType ? "Study types" : "Subjects"} onClose={onClose}>
+      <Dialog
+        title={studyType ? "Study types" : "Subjects"}
+        onClose={requestClose}
+      >
         <div className="subject-list">
           {subjects.map((s) => (
             <div className="subject-row" key={s.id}>
@@ -82,8 +96,14 @@ export function Subjects({
         </div>
         <form
           className="form"
+          noValidate
           onSubmit={async (e) => {
             e.preventDefault();
+            if (!name.trim()) {
+              setError(`Enter a ${noun} name.`);
+              return;
+            }
+            setError("");
             if (
               await mutate({ kind: mode, id: editing?.id ?? null, name, color })
             ) {
@@ -101,8 +121,14 @@ export function Subjects({
               placeholder={
                 studyType ? "e.g. Solving problems" : "e.g. Data Structures"
               }
-              onChange={(e) => setName(e.target.value)}
+              aria-invalid={!!error}
+              aria-describedby={error ? "choice-name-error" : undefined}
+              onChange={(e) => {
+                setName(e.target.value);
+                setError("");
+              }}
             />
+            {error && <InlineError id="choice-name-error">{error}</InlineError>}
           </label>
           <div className="swatches" role="group" aria-label="Subject color">
             {COLORS.map((c) => (
@@ -135,6 +161,18 @@ export function Subjects({
           </footer>
         </form>
       </Dialog>
+      {discard && (
+        <Confirm
+          title="Discard this draft?"
+          label="Discard changes"
+          busy={busy}
+          onClose={() => setDiscard(false)}
+          onConfirm={onClose}
+        >
+          Your saved subjects and study types stay unchanged. Go back to keep
+          editing, or discard this draft.
+        </Confirm>
+      )}
       {deleting && (
         <Confirm
           title={`Delete ${deleting.name}?`}

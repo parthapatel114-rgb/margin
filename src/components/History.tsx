@@ -6,6 +6,7 @@ import { DateRangePicker } from "./Calendar";
 import { rangeBounds } from "../lib/dates";
 import type { HistoryFilter } from "../lib/types";
 import { Confirm } from "./Dialog";
+import { EmptyLedger } from "./Feedback";
 export function SessionRows({
   sessions,
   subjects,
@@ -302,6 +303,7 @@ export function History({
         ))
       ) : (
         <div className="empty">
+          <EmptyLedger />
           <h2>
             {hasFinished ? "No matching sessions" : "No finished sessions yet"}
           </h2>

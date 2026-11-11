@@ -35,3 +35,7 @@ Coordinated interface redesign; Stopwatch, Pomodoro and Countdown; persisted bre
 ## 0.3.0
 
 Compact study workspace and first-session choices; optional intentions and daily targets; repeat preparation; searchable/sortable History; shared themed date-range picker; filtered statistics with chart drilldown, subject-by-study-type matrix, monthly activity calendar and yearly overview. Schema 4 and backup version 4 preserve versions 1–3. Original appearance preferences, history and native timer behavior are retained. The full selected improvement list and research are in docs/improvement-plan.md.
+
+## 0.4.0
+
+A local visual and recovery revision: study-ledger typography and layout; three Carbon and three Paper palettes; bundled Source Serif 4 / Source Sans 3; clearer inline validation, protected drafts, and safe refresh/retry actions. No timer mode, history/statistics function, backup format or database schema is removed or changed. macOS menu Quit uses the normal close-request path to protect unsaved input. Native builds now invalidate embedded UI assets after frontend changes. Local build verification is recorded in verification.md; the existing GitHub 0.3.0 release is separate from this local build.

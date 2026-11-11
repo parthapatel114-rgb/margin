@@ -30,6 +30,7 @@ import {
 import { Confirm } from "./Dialog";
 import { COLORS } from "../lib/palette";
 import { DurationField } from "./DurationField";
+import { InlineError } from "./Feedback";
 export function Timer({
   data,
   active,
@@ -46,6 +47,7 @@ export function Timer({
   onMain,
   onCloseMini,
   draft,
+  onDraftChange,
 }: {
   data: Snapshot;
   active?: Session;
@@ -62,6 +64,7 @@ export function Timer({
   onMain: () => void;
   onCloseMini: () => void;
   draft?: SessionDraft;
+  onDraftChange?: (value?: Omit<SessionDraft, "version">) => void;
 }) {
   const breakState = data.timerState.break;
   const mode: TimerMode =
@@ -108,6 +111,20 @@ export function Timer({
     : chosenType?.name;
   const text = typed ?? chosen?.name ?? "",
     typeText = typedType ?? chosenType?.name ?? "";
+  function changeDraft(
+    value: Partial<{ subject: string; studyType: string; note: string }>,
+  ) {
+    if (value.subject !== undefined) setTyped(value.subject);
+    if (value.studyType !== undefined) setTypedType(value.studyType);
+    if (value.note !== undefined) setIntention(value.note);
+    setFieldError("");
+    onDraftChange?.({
+      subject: text,
+      studyType: typeText,
+      note: intention,
+      ...value,
+    });
+  }
   const running = breakState
     ? breakState.runningSince !== null
     : !!active?.segments.some((p) => p.end === null);
@@ -207,6 +224,7 @@ export function Timer({
         setTyped(null);
         setTypedType(null);
         setIntention("");
+        onDraftChange?.();
       }
     } finally {
       setStarting(false);
@@ -438,7 +456,9 @@ export function Timer({
                         placeholder="e.g. Data Structures"
                         autoComplete="off"
                         value={text}
-                        onChange={(e) => setTyped(e.target.value)}
+                        onChange={(e) =>
+                          changeDraft({ subject: e.target.value })
+                        }
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
@@ -480,7 +500,9 @@ export function Timer({
                         placeholder="e.g. Reviewing"
                         autoComplete="off"
                         value={typeText}
-                        onChange={(e) => setTypedType(e.target.value)}
+                        onChange={(e) =>
+                          changeDraft({ studyType: e.target.value })
+                        }
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
@@ -509,9 +531,7 @@ export function Timer({
                 </div>
               )}
               {fieldError && (
-                <p className="field-error" role="alert" id="timer-input-error">
-                  {fieldError}
-                </p>
+                <InlineError id="timer-input-error">{fieldError}</InlineError>
               )}
 
               {!focus && !active && !breakState && (
@@ -533,8 +553,7 @@ export function Timer({
                           key={name}
                           aria-pressed={text === name}
                           onClick={() => {
-                            setTyped(name);
-                            setFieldError("");
+                            changeDraft({ subject: name });
                           }}
                         >
                           {name}
@@ -555,7 +574,7 @@ export function Timer({
                           className="suggestion-chip"
                           key={t.id}
                           aria-pressed={typeText === t.name}
-                          onClick={() => setTypedType(t.name)}
+                          onClick={() => changeDraft({ studyType: t.name })}
                         >
                           {t.name}
                         </button>
@@ -569,7 +588,7 @@ export function Timer({
                       maxLength={2000}
                       placeholder="e.g. Practice integration problems"
                       value={intention}
-                      onChange={(e) => setIntention(e.target.value)}
+                      onChange={(e) => changeDraft({ note: e.target.value })}
                     />
                   </label>
                 </>

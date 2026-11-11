@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import type { Mutate } from "../lib/types";
+import { CircleAlert } from "lucide-react";
 export function DurationField({
   label,
   value,
@@ -73,7 +74,8 @@ export function DurationField({
       </span>
       {error && (
         <span className="field-error" id={`${id}-error`} role="alert">
-          {error}
+          <CircleAlert size={14} aria-hidden="true" />
+          <span>{error}</span>
         </span>
       )}
     </label>

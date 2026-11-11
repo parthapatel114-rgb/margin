@@ -57,3 +57,11 @@ Migration 4 adds the optional `dailyGoalMinutes` preference with a disabled defa
 The shared MonthCalendar supports arrow, Home/End and Page Up/Down navigation with focus transfer across months. DateRangePicker normalizes reversed selections and validates direct entries before Apply. History selects sessions whose active intervals intersect the local date range, so an overnight session can be found on either active date. Its summary reports time within the range; individual rows retain complete session duration. Statistics use the same local-day bounds and pass subject/type/date filters to History when a chart bar, day or study-mix cell is selected.
 
 Study mix computes the intersections of saved intervals by subject, study type and session method. Manual entries are their own method. Median session length uses the durations that contribute to the selected period. Existing stopwatch/Pomodoro/countdown reconciliation and break accounting remain native and unchanged.
+
+## Interface revision 0.4
+
+Native timing, schema 4, backups, filters and analytic policies are unchanged. Six palettes keep their existing preference IDs; the `inter` font key now selects Editorial (Source Sans 3 with Source Serif 4 headings). Fonts remain bundled locally.
+
+Only unsaved timer input lives in React state across routes; saved records still belong to SQLite. Changed manual-entry and choice forms have a discard confirmation. The main close-request listener protects open editors and unstarted timer drafts. Standard macOS menu Quit is routed to that close request because the predefined Quit can bypass ExitRequested; other native menu commands are preserved. The two local windows receive allow-destroy because Tauri's onCloseRequested completes an accepted close by calling destroy. This is scoped to the existing main/mini windows, with no new filesystem or network access.
+
+The build script explicitly watches ../dist so a frontend-only change invalidates the native embedded assets. This prevents a packaged preview reusing an older UI after a test build. Rendering tests used temporary RTL/enlarged-text assets; the final source and release use English at normal text size.

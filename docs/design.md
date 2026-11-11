@@ -48,3 +48,7 @@ Timer modes are a first-class choice beside the subject/type workflow. Pomodoro 
 The user's second visual pass identified remaining empty space and a difficult first-use/statistics experience. The timer now places its session fields and clock side by side, with compact totals above, repeat preparation and history below. Navigation uses a narrow rail, collapsing to named icon controls at narrow widths. There is no new runtime UI dependency.
 
 Statistics is divided into Overview, Calendar and Study mix. Three primary metrics replace the long introductory stack. Hourly patterns are secondary. The History date filter and activity calendar share a themed month grid instead of mixing app colors with an operating-system date popup. Repeated calendar mode controls and duplicate table captions are removed from the visible interface. The [concrete improvement list](improvement-plan.md) records the official competitor sources and product boundary.
+
+## Study ledger revision, 0.4
+
+The user requested another visual pass informed by the supplied LearnHarness screenshot, with no function removal. The new [design specification](redesign-0.4.md) defines typography, exact six-palette tokens, surfaces and complete state handling. Primary facts are no longer equal dashboard cards; recent contexts are compact controls. One restrained working surface holds the timer. See [the current UI review](ui-review.md) for evidence and boundaries.

@@ -11,6 +11,7 @@ import {
 import type { Snapshot, Session, Mutate } from "../lib/types";
 import { SessionRows } from "./History";
 import { Dialog } from "./Dialog";
+import { EmptyLedger, InlineError } from "./Feedback";
 export function Today({
   data,
   now,
@@ -149,11 +150,6 @@ export function Today({
                 ? "Study session"
                 : "Start your first session"}
           </h2>
-          <span>
-            {data.sessions.some((s) => s.endedAt === null)
-              ? "Timer running or paused"
-              : "Choose a subject and study type"}
-          </span>
         </div>
         {timer}
       </section>
@@ -161,7 +157,6 @@ export function Today({
         <section className="continue-section">
           <div className="section-heading">
             <h2>Continue studying</h2>
-            <span>Prepare a session</span>
           </div>
           <div className="continue-grid">
             {combos.map((s) => (
@@ -214,7 +209,8 @@ export function Today({
             />
           ) : (
             <div className="first-record">
-              <span>Your finished sessions will appear here.</span>
+              <EmptyLedger />
+              <span>No sessions yet.</span>
               <button className="text-button" onClick={onAdd}>
                 <Plus size={14} />
                 Log past study time
@@ -274,11 +270,7 @@ export function Today({
             <p className="hint">
               Counts actual study time. Breaks are excluded.
             </p>
-            {goalError && (
-              <p role="alert" className="field-error">
-                {goalError}
-              </p>
-            )}
+            {goalError && <InlineError>{goalError}</InlineError>}
             <footer>
               {goal > 0 && (
                 <button

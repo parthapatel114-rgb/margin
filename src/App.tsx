@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -8,6 +8,8 @@ import {
   Timer as TimerIcon,
   History as HistoryIcon,
   ChartNoAxesCombined,
+  CircleAlert,
+  RotateCcw,
 } from "lucide-react";
 import { Timer } from "./components/Timer";
 import { Today } from "./components/Today";
@@ -16,7 +18,7 @@ import { Insights } from "./components/Insights";
 import { Settings } from "./components/Settings";
 import { Subjects } from "./components/Subjects";
 import { SessionEditor } from "./components/SessionEditor";
-import { Dialog } from "./components/Dialog";
+import { Dialog, Confirm } from "./components/Dialog";
 import { useClock, useStudyStore } from "./lib/store";
 import type { Session, SessionDraft, HistoryFilter } from "./lib/types";
 function Mark() {
@@ -30,18 +32,52 @@ function Mark() {
   );
 }
 export function App() {
-  const { data, error, setError, busy, mutate, refresh } = useStudyStore();
+  const { data, error, setError, busy, busySince, mutate, refresh } =
+    useStudyStore();
   const now = useClock();
   const mini = new URLSearchParams(location.search).get("window") === "mini";
   const [page, setPage] = useState<"today" | "history" | "insights">("today");
   const [focus, setFocus] = useState(false);
   const [settings, setSettings] = useState(false);
   const [manage, setManage] = useState<"subject" | "study_type" | null>(null);
+  const [pendingManual, setPendingManual] = useState(false);
   const [draft, setDraft] = useState<SessionDraft>();
+  const [quitConfirm, setQuitConfirm] = useState(false);
+  const draftRef = useRef(false),
+    allowClose = useRef(false);
+  const saveDraft = useCallback((next?: Omit<SessionDraft, "version">) => {
+    setDraft((previous) =>
+      next ? { ...next, version: previous?.version ?? 0 } : undefined,
+    );
+  }, []);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>({});
   const [editor, setEditor] = useState<Session | "new" | null>(null);
   const active = data?.sessions.find((s) => s.endedAt === null);
   const breakState = data?.timerState.break;
+  useEffect(() => {
+    draftRef.current = !!editor || !!manage || (!!draft && !active);
+  }, [draft, active, editor, manage]);
+  useEffect(() => {
+    if (mini) return;
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void getCurrentWindow()
+      .onCloseRequested((event) => {
+        if (draftRef.current && !allowClose.current) {
+          event.preventDefault();
+          setQuitConfirm(true);
+        }
+      })
+      .then((fn) => {
+        if (disposed) fn();
+        else cleanup = fn;
+      })
+      .catch(() => {});
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }, [mini]);
   const doNative = useCallback(
     async (command: string) => {
       try {
@@ -190,15 +226,23 @@ export function App() {
     setDraft((p) => ({
       subject: subject.name,
       studyType: type.name,
+      note: p?.note,
       version: (p?.version ?? 0) + 1,
     }));
     setPage("today");
   }
   function addSession() {
     if (!data?.subjects.some((s) => !s.archived)) {
+      setPendingManual(true);
       setManage("subject");
       return;
     }
+    if (!data.studyTypes.some((type) => !type.archived)) {
+      setPendingManual(true);
+      setManage("study_type");
+      return;
+    }
+    setPendingManual(false);
     setEditor("new");
   }
   if (!data)
@@ -208,13 +252,21 @@ export function App() {
           <Mark />
           <span>Margin</span>
         </div>
-        <p>{error || "Loading…"}</p>
+        <p role={error ? "alert" : "status"}>
+          {error ? (
+            <>
+              <CircleAlert size={18} /> {error}
+            </>
+          ) : (
+            "Opening your study journal…"
+          )}
+        </p>
         {error && (
           <button
             className="secondary"
             onClick={() => {
               setError("");
-              void refresh();
+              void refresh(true);
             }}
           >
             Retry
@@ -235,6 +287,7 @@ export function App() {
     <Timer
       key={draft?.version ?? 0}
       draft={draft}
+      onDraftChange={mini ? undefined : saveDraft}
       data={data}
       active={active}
       now={now}
@@ -387,6 +440,11 @@ export function App() {
           />
         )}
       </main>
+      {busy && now - busySince > 8000 && (
+        <div className="local-save-status" role="status">
+          Still saving on this computer. Keep Margin open.
+        </div>
+      )}
       <div
         className={`notice-region ${notice && !mini ? "has-notice" : ""}`}
         role="status"
@@ -428,7 +486,6 @@ export function App() {
           mutate={mutate}
           busy={busy}
           onClose={() => setSettings(false)}
-          onError={setError}
           onRefresh={refresh}
         />
       )}
@@ -446,7 +503,17 @@ export function App() {
           }
           mutate={mutate}
           busy={busy}
-          onClose={() => setManage(null)}
+          onClose={() => {
+            setManage(null);
+            if (
+              pendingManual &&
+              (manage === "subject" ? data.subjects : data.studyTypes).some(
+                (choice) => !choice.archived,
+              )
+            )
+              addSession();
+            else setPendingManual(false);
+          }}
         />
       )}
       {editor && (
@@ -460,16 +527,49 @@ export function App() {
         />
       )}
       {error && (
-        <Dialog title="Action failed" onClose={() => setError("")}>
-          <p className="dialog-copy" role="alert">
-            {error}
+        <Dialog title="Couldn’t complete that" onClose={() => setError("")}>
+          <p className="field-error" role="alert">
+            <CircleAlert size={18} />
+            <span>{error}</span>
+          </p>
+          <p className="dialog-copy">
+            Your input is kept. Refresh to check the saved state, then try the
+            action again.
           </p>
           <footer>
-            <button className="primary" onClick={() => setError("")}>
+            <button className="secondary" onClick={() => setError("")}>
               Close
+            </button>
+            <button
+              className="primary"
+              disabled={busy}
+              onClick={() => void refresh(true)}
+            >
+              <RotateCcw size={15} />
+              Refresh data
             </button>
           </footer>
         </Dialog>
+      )}
+      {quitConfirm && (
+        <Confirm
+          title="Close Margin?"
+          label="Discard & close"
+          busy={busy}
+          onClose={() => setQuitConfirm(false)}
+          onConfirm={() => {
+            allowClose.current = true;
+            void getCurrentWindow()
+              .close()
+              .catch((e) => {
+                allowClose.current = false;
+                setError(String(e));
+              });
+          }}
+        >
+          Unsaved input in this window will be discarded. Keep Margin open to
+          continue editing. Saved sessions and the current timer are kept.
+        </Confirm>
       )}
     </div>
   );

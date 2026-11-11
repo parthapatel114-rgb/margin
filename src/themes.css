@@ -1,0 +1,145 @@
+/* Six three-color palettes. Derived surfaces use OKLab interpolation. */
+[data-theme="dark"] {
+  --bg: #111111;
+  --surface: #181918;
+  --raised: #1c1d1c;
+  --text: #eeece6;
+  --muted: #aaa9a3;
+  --border: #303431;
+  --control-border: #7f817b;
+  --secondary: #a5baaa;
+  --accent: #ddc18a;
+  --accent-text: #171611;
+  --hover: #222523;
+  --danger: #f1a3a0;
+  --danger-text: #281313;
+  --chart: #a5baaa;
+  --chart-light: #414742;
+  --heat0: #1f201f;
+  --heat1: #343935;
+  --heat2: #4e5650;
+  --heat3: #6c796f;
+  --heat4: #94a799;
+  color-scheme: dark;
+}
+
+[data-theme="forest"] {
+  --bg: #111111;
+  --surface: #181917;
+  --raised: #1d1e1b;
+  --text: #eeece6;
+  --muted: #aaa9a3;
+  --border: #32342c;
+  --control-border: #7f817b;
+  --secondary: #b0bb91;
+  --accent: #dfcf8f;
+  --accent-text: #171611;
+  --hover: #242520;
+  --danger: #f1a3a0;
+  --danger-text: #281313;
+  --chart: #b0bb91;
+  --chart-light: #44473b;
+  --heat0: #1f201d;
+  --heat1: #363930;
+  --heat2: #525646;
+  --heat3: #737960;
+  --heat4: #9ea883;
+  color-scheme: dark;
+}
+
+[data-theme="slate"] {
+  --bg: #111111;
+  --surface: #181919;
+  --raised: #1c1d1f;
+  --text: #eeece6;
+  --muted: #aaa9a3;
+  --border: #2f3438;
+  --control-border: #7f817b;
+  --secondary: #a0bacd;
+  --accent: #dbb998;
+  --accent-text: #171611;
+  --hover: #222527;
+  --danger: #f1a3a0;
+  --danger-text: #281313;
+  --chart: #a0bacd;
+  --chart-light: #3f474d;
+  --heat0: #1e2022;
+  --heat1: #33393d;
+  --heat2: #4c565d;
+  --heat3: #697984;
+  --heat4: #90a7b8;
+  color-scheme: dark;
+}
+
+:root:not([data-theme]),
+[data-theme="light"] {
+  --bg: #ffffff;
+  --surface: #f7f8f7;
+  --raised: #fcfcfc;
+  --text: #23231f;
+  --muted: #66655e;
+  --border: #d7dcd6;
+  --control-border: #888b82;
+  --secondary: #435b43;
+  --accent: #9b4f2b;
+  --accent-text: #ffffff;
+  --hover: #f2f4f2;
+  --danger: #ab3434;
+  --danger-text: #ffffff;
+  --chart: #435b43;
+  --chart-light: #b7c1b7;
+  --heat0: #e9ece9;
+  --heat1: #c9d0c9;
+  --heat2: #a6b2a6;
+  --heat3: #809180;
+  --heat4: #546a54;
+  color-scheme: light;
+}
+
+[data-theme="warm"] {
+  --bg: #ffffff;
+  --surface: #faf8f6;
+  --raised: #fdfcfc;
+  --text: #23231f;
+  --muted: #66655e;
+  --border: #e3dcd2;
+  --control-border: #888b82;
+  --secondary: #77582b;
+  --accent: #355e78;
+  --accent-text: #ffffff;
+  --hover: #f6f3f0;
+  --danger: #ab3434;
+  --danger-text: #ffffff;
+  --chart: #77582b;
+  --chart-light: #cdc0b0;
+  --heat0: #efebe6;
+  --heat1: #d9d0c3;
+  --heat2: #c0b19d;
+  --heat3: #a59073;
+  --heat4: #846840;
+  color-scheme: light;
+}
+
+[data-theme="rose"] {
+  --bg: #ffffff;
+  --surface: #f9f7f8;
+  --raised: #fdfcfc;
+  --text: #23231f;
+  --muted: #66655e;
+  --border: #e1d7db;
+  --control-border: #888b82;
+  --secondary: #6b4357;
+  --accent: #306b60;
+  --accent-text: #ffffff;
+  --hover: #f5f2f3;
+  --danger: #ab3434;
+  --danger-text: #ffffff;
+  --chart: #6b4357;
+  --chart-light: #c9b7bf;
+  --heat0: #eee9eb;
+  --heat1: #d6c9cf;
+  --heat2: #bba6b0;
+  --heat3: #9e818e;
+  --heat4: #795466;
+  color-scheme: light;
+}

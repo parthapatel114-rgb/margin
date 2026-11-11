@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Check, Download, FolderOpen, Upload } from "lucide-react";
+import { Check, Download, FolderOpen, Upload, RotateCcw } from "lucide-react";
 import { Dialog } from "./Dialog";
 import { DurationField } from "./DurationField";
 import type {
@@ -9,27 +9,25 @@ import type {
   IoResult,
   Mutate,
   Settings as Preferences,
-  Theme,
 } from "../lib/types";
-const themes: Theme[] = ["light", "dark", "warm", "slate", "forest", "rose"];
+import { THEMES } from "../lib/themes";
+import { InlineError } from "./Feedback";
 const fonts: { id: Font; name: string; family: string }[] = [
-  { id: "inter", name: "Inter", family: "Inter Variable" },
-  { id: "dm-sans", name: "DM Sans", family: "DM Sans Variable" },
-  { id: "plex-mono", name: "IBM Plex Mono", family: "IBM Plex Mono" },
+  { id: "inter", name: "Editorial", family: "Source Sans 3 Variable" },
+  { id: "dm-sans", name: "Humanist", family: "DM Sans Variable" },
+  { id: "plex-mono", name: "Mono", family: "IBM Plex Mono" },
 ];
 export function Settings({
   settings,
   mutate,
   busy,
   onClose,
-  onError,
   onRefresh,
 }: {
   settings: Preferences;
   mutate: Mutate;
   busy: boolean;
   onClose: () => void;
-  onError: (s: string) => void;
   onRefresh: () => Promise<void>;
 }) {
   const [tab, setTab] = useState<"appearance" | "timer" | "data" | "about">(
@@ -38,9 +36,13 @@ export function Settings({
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [working, setWorking] = useState(false);
   const [notice, setNotice] = useState("");
+  const [ioError, setIoError] = useState("");
+  const [lastAction, setLastAction] = useState("");
   async function action(action: string) {
     setWorking(true);
     setNotice("");
+    setIoError("");
+    setLastAction(action);
     try {
       const result = await invoke<IoResult>("data_action", { action });
       if (result.preview) setPreview(result.preview);
@@ -55,14 +57,20 @@ export function Settings({
         await onRefresh();
       }
     } catch (e) {
-      onError(String(e));
+      setIoError(String(e));
     } finally {
       setWorking(false);
     }
   }
   return (
     <>
-      <Dialog title="Settings" onClose={onClose} wide>
+      <Dialog
+        title="Settings"
+        onClose={() => {
+          if (!working) onClose();
+        }}
+        wide
+      >
         <div
           className="settings-tabs"
           role="group"
@@ -76,31 +84,41 @@ export function Settings({
         </div>
         {tab === "appearance" ? (
           <div className="settings-content">
-            <h3>Theme</h3>
-            <div className="theme-grid">
-              {themes.map((theme) => (
-                <button
-                  className="theme-option"
-                  data-theme={theme}
-                  aria-pressed={settings.theme === theme}
-                  key={theme}
-                  onClick={() =>
-                    void mutate({ kind: "setting", key: "theme", value: theme })
-                  }
-                  disabled={busy}
-                >
-                  <span className="theme-preview" aria-hidden="true">
-                    <i />
-                    <i />
-                    <i />
-                  </span>
-                  <span>
-                    {theme[0].toUpperCase() + theme.slice(1)}
-                    {theme === settings.theme && <Check size={14} />}
-                  </span>
-                </button>
-              ))}
-            </div>
+            {(["dark", "light"] as const).map((mode) => (
+              <section className="theme-family" key={mode}>
+                <h3>{mode === "dark" ? "Carbon" : "Paper"}</h3>
+                <div className="theme-grid">
+                  {THEMES.filter((theme) => theme.mode === mode).map(
+                    (theme) => (
+                      <button
+                        className="theme-option"
+                        aria-label={theme.name}
+                        aria-pressed={settings.theme === theme.id}
+                        key={theme.id}
+                        onClick={() =>
+                          void mutate({
+                            kind: "setting",
+                            key: "theme",
+                            value: theme.id,
+                          })
+                        }
+                        disabled={busy}
+                      >
+                        <span className="theme-preview" aria-hidden="true">
+                          {theme.colors.map((color) => (
+                            <i key={color} style={{ background: color }} />
+                          ))}
+                        </span>
+                        <span>
+                          {theme.name.split(" & ")[1]}
+                          {theme.id === settings.theme && <Check size={14} />}
+                        </span>
+                      </button>
+                    ),
+                  )}
+                </div>
+              </section>
+            ))}
             <h3>Font</h3>
             <div className="font-list">
               {fonts.map((font) => (
@@ -246,7 +264,7 @@ export function Settings({
         ) : (
           <div className="settings-content about">
             <h3>
-              Margin <small>0.3.0</small>
+              Margin <small>0.4.0</small>
             </h3>
             <p>Local study tracking.</p>
             <dl>
@@ -254,11 +272,28 @@ export function Settings({
               <dd>MIT</dd>
               <dt>Fonts</dt>
               <dd>
-                Inter, DM Sans, IBM Plex Mono
+                Source Serif 4, Source Sans 3, DM Sans, IBM Plex Mono
                 <br />
                 SIL Open Font License
               </dd>
             </dl>
+          </div>
+        )}
+        {ioError && (
+          <div className="io-error">
+            <InlineError>{ioError}</InlineError>
+            <button
+              className="secondary"
+              disabled={working}
+              onClick={() =>
+                void action(
+                  lastAction === "restore" ? "preview_import" : lastAction,
+                )
+              }
+            >
+              <RotateCcw size={15} />
+              {lastAction === "restore" ? "Choose backup again" : "Try again"}
+            </button>
           </div>
         )}
       </Dialog>
@@ -266,6 +301,7 @@ export function Settings({
         <Dialog
           title="Replace study data?"
           onClose={() => {
+            if (working) return;
             setPreview(null);
             void action("cancel_import");
           }}
@@ -282,6 +318,7 @@ export function Settings({
               : ""}
           </p>
           <footer>
+            {ioError && <InlineError>{ioError}</InlineError>}
             <button
               className="secondary"
               disabled={working}
