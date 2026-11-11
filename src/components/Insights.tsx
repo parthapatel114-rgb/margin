@@ -1,5 +1,12 @@
-import { useMemo, useState } from "react";
-import { ArrowRight, ChevronLeft, ChevronRight, BookOpen } from "lucide-react";
+import { useMemo, useState, useRef, useEffect } from "react";
+import {
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  BookOpen,
+  BarChart3,
+  CalendarDays,
+} from "lucide-react";
 import {
   addDays,
   analyze,
@@ -7,22 +14,29 @@ import {
   dayStart,
   duration,
   hourLabel,
-  observations,
   range,
   rankedSubjects,
   shiftPeriod,
-  weekStart,
   type Analysis,
   type Period,
 } from "../lib/analytics";
-import type { Session, Subject } from "../lib/types";
+import {
+  dateAt,
+  monthStart,
+  rangeBounds,
+  shiftMonth,
+  type DateRange,
+} from "../lib/dates";
+import { studyMix, trendBuckets } from "../lib/insights";
+import { MODE_NAMES } from "../lib/timer";
+import type { Session, Subject, HistoryFilter } from "../lib/types";
 import { Dialog } from "./Dialog";
+import { DateRangePicker, MonthCalendar } from "./Calendar";
+
 function SubjectBreakdown({
   data,
   subjects,
-  previous,
 }: {
-  previous?: Analysis;
   data: Analysis;
   subjects: Subject[];
 }) {
@@ -36,30 +50,7 @@ function SubjectBreakdown({
               {row.subject?.name ?? "Removed subject"}
             </span>
             <span>
-              {duration(row.ms)}{" "}
-              <small
-                title={
-                  previous?.total
-                    ? `Share change: ${(row.percent - ((previous.subjects[row.id] ?? 0) / previous.total) * 100).toFixed(1)} percentage points from the previous period`
-                    : undefined
-                }
-              >
-                {Math.round(row.percent)}%
-              </small>
-              {previous && previous.total > 0 && (
-                <small className="share-change">
-                  {row.percent -
-                    ((previous.subjects[row.id] ?? 0) / previous.total) * 100 >=
-                  0
-                    ? "+"
-                    : ""}
-                  {(
-                    row.percent -
-                    ((previous.subjects[row.id] ?? 0) / previous.total) * 100
-                  ).toFixed(0)}{" "}
-                  pp
-                </small>
-              )}
+              {duration(row.ms)} <small>{Math.round(row.percent)}%</small>
             </span>
           </div>
           <div className="track">
@@ -75,412 +66,654 @@ function SubjectBreakdown({
     </div>
   );
 }
-function Trend({
-  data,
-  from,
-  to,
-  period,
-}: {
-  data: Analysis;
-  from: number;
-  to: number;
-  period: Period;
-}) {
-  const bins = new Map<string, number>();
-  for (let cursor = from; cursor < to; cursor = addDays(cursor, 1)) {
-    const date = new Date(cursor);
-    const key =
-      period === "year"
-        ? dayKey(weekStart(cursor))
-        : period === "all"
-          ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-          : dayKey(cursor);
-    bins.set(
-      key,
-      (bins.get(key) ?? 0) + (data.days[dayKey(cursor)]?.total ?? 0),
-    );
-  }
-  const entries = [...bins];
-  const max = Math.max(1, ...entries.map((x) => x[1]));
-  return (
-    <>
-      <div
-        className="trend-bars"
-        role="img"
-        aria-label={`Study duration by ${period === "all" ? "month" : period === "year" ? "week" : "day"}. ${entries
-          .filter(([, ms]) => ms > 0)
-          .map(([key, ms]) => `${key}: ${duration(ms)}`)
-          .join(", ")}`}
-      >
-        {entries.map(([key, ms]) => (
-          <div
-            className="trend-column"
-            key={key}
-            title={`${key}: ${duration(ms)}`}
-          >
-            <span
-              style={{ height: `${ms ? Math.max(2, (ms / max) * 100) : 1}%` }}
-            />
-          </div>
-        ))}
-      </div>
-      <div className="chart-axis">
-        <span>
-          {new Date(from).toLocaleDateString([], {
-            month: "short",
-            day: "numeric",
-            year: period === "all" ? "numeric" : undefined,
-          })}
-        </span>
-        <span>
-          {period === "year"
-            ? "Weekly totals"
-            : period === "all"
-              ? "Monthly totals"
-              : "Daily totals"}
-        </span>
-        <span>
-          {new Date(addDays(to, -1)).toLocaleDateString([], {
-            month: "short",
-            day: "numeric",
-          })}
-        </span>
-      </div>
-    </>
-  );
-}
 export function Insights({
   sessions,
   subjects,
   studyTypes,
   now,
   onStart,
+  onAdd,
+  onHistory,
 }: {
-  onStart: () => void;
   sessions: Session[];
   subjects: Subject[];
   studyTypes: Subject[];
   now: number;
+  onStart: () => void;
+  onAdd: () => void;
+  onHistory: (filter: HistoryFilter) => void;
 }) {
-  const [breakdown, setBreakdown] = useState<"subjects" | "types">("subjects");
-  const [period, setPeriod] = useState<Period>("week");
-  const [anchor, setAnchor] = useState(now);
-  const [recap, setRecap] = useState(false);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [view, setView] = useState<"overview" | "calendar" | "mix">("overview"),
+    [period, setPeriod] = useState<Period>("week"),
+    [anchor, setAnchor] = useState(now);
+  const [subject, setSubject] = useState(""),
+    [studyType, setStudyType] = useState(""),
+    [custom, setCustom] = useState<DateRange | null>(null),
+    [recap, setRecap] = useState(false),
+    [breakdown, setBreakdown] = useState<"subjects" | "types">("subjects");
+  const [calendarScale, setCalendarScale] = useState<"month" | "year">("month"),
+    [selectedDay, setSelectedDay] = useState(dayKey(now));
   const finished = useMemo(
     () => sessions.filter((s) => s.endedAt !== null),
     [sessions],
   );
-  const [from, to] = range(period, anchor, finished);
-  const data = useMemo(
-    () => analyze(finished, from, to, Infinity),
-    [finished, from, to],
+  const scoped = useMemo(
+    () =>
+      finished.filter(
+        (s) =>
+          (!subject || s.subjectId === subject) &&
+          (!studyType || s.studyTypeId === studyType),
+      ),
+    [finished, subject, studyType],
   );
-  const [previousFrom, previousTo] = range(
+  const [baseFrom, baseTo] = range(period, anchor, finished),
+    [from, to] = custom ? rangeBounds(custom, now) : [baseFrom, baseTo];
+  const data = useMemo(
+    () => analyze(scoped, from, to, Infinity),
+    [scoped, from, to],
+  );
+  const mix = useMemo(
+    () => studyMix(scoped, from, to, Infinity),
+    [scoped, from, to],
+  );
+  const buckets = useMemo(
+    () => trendBuckets(data, from, to, custom ? "custom" : period),
+    [data, from, to, custom, period],
+  );
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [chartOverflow, setChartOverflow] = useState(false);
+  useEffect(() => {
+    const root = chartRef.current;
+    if (!root) return;
+    const observer = new ResizeObserver(() =>
+      setChartOverflow(root.scrollWidth > root.clientWidth + 1),
+    );
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [buckets, view]);
+  const max = Math.max(1, ...buckets.map((b) => b.ms)),
+    currentRange = { from: dayKey(from), to: dayKey(addDays(to, -1)) };
+  const [priorFrom, priorTo] = range(
     period,
     shiftPeriod(period, anchor, -1),
     finished,
   );
   const previous = useMemo(
-    () => analyze(finished, previousFrom, previousTo, Infinity),
-    [finished, previousFrom, previousTo],
+    () =>
+      !custom && period !== "all"
+        ? analyze(scoped, priorFrom, priorTo, Infinity)
+        : null,
+    [custom, period, scoped, priorFrom, priorTo],
   );
-  const lines = observations(
-    data,
-    period === "all" ? analyze([], 0, 0) : previous,
-    subjects,
+  const year = new Date(anchor).getFullYear(),
+    calendarFrom = +new Date(year, 0, 1),
+    calendarTo = +new Date(year + 1, 0, 1);
+  const yearData = useMemo(
+    () => analyze(scoped, calendarFrom, calendarTo, Infinity),
+    [scoped, calendarFrom, calendarTo],
   );
-  const year = new Date(anchor).getFullYear();
-  const yearStart = +new Date(year, 0, 1),
-    yearEnd = +new Date(year + 1, 0, 1);
-  const calendar = useMemo(
-    () => analyze(finished, yearStart, yearEnd, Infinity),
-    [finished, yearStart, yearEnd],
+  const dayData = useMemo(
+    () =>
+      analyze(
+        scoped,
+        dayStart(dateAt(selectedDay)),
+        addDays(dayStart(dateAt(selectedDay)), 1),
+        Infinity,
+      ),
+    [scoped, selectedDay],
   );
-  const cells: Array<number | null> = Array(
-    (new Date(yearStart).getDay() + 6) % 7,
-  ).fill(null);
-  for (let day = yearStart; day < yearEnd; day = addDays(day, 1))
-    cells.push(day);
-  while (cells.length % 7) cells.push(null);
-  const inspectedDay = useMemo(() => {
-    if (!selectedDay) return null;
-    const start = +new Date(`${selectedDay}T00:00`);
-    return analyze(finished, start, addDays(start, 1), Infinity);
-  }, [selectedDay, finished]);
-  const peak = Math.max(1, ...Object.values(calendar.days).map((d) => d.total));
-  const totalHours = Math.max(1, ...data.hours);
-  const label =
-    period === "all"
-      ? "All recorded time"
-      : period === "week"
-        ? `${new Date(from).toLocaleDateString([], { month: "short", day: "numeric" })} – ${new Date(addDays(to, -1)).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}`
-        : new Date(from).toLocaleDateString([], {
-            year: "numeric",
-            month: period === "month" ? "long" : undefined,
-          });
+  const hourPeak = data.hours.indexOf(Math.max(...data.hours));
+  const history = (filter: HistoryFilter = {}) =>
+    onHistory({
+      from: currentRange.from,
+      to: currentRange.to,
+      subject,
+      studyType,
+      ...filter,
+    });
+  const reset = () => {
+    setSubject("");
+    setStudyType("");
+    setCustom(null);
+    setPeriod(view === "calendar" ? calendarScale : "week");
+    setAnchor(now);
+    setSelectedDay(dayKey(now));
+  };
+  function changeView(next: "overview" | "calendar" | "mix") {
+    setView(next);
+    if (next === "calendar") {
+      setPeriod("month");
+      setCustom(null);
+      const at = custom?.from ? dateAt(custom.from) : anchor;
+      setAnchor(at);
+      setCalendarScale("month");
+      setSelectedDay(dayKey(at));
+    }
+  }
   return (
     <>
       <div className="page-heading">
-        <h1 tabIndex={-1}>Insights</h1>
+        <div className="page-title">
+          <h1 tabIndex={-1}>Statistics</h1>
+          <span className="muted">Finished sessions</span>
+        </div>
         <button className="secondary" onClick={() => setRecap(true)}>
           <BookOpen size={16} />
-          Study Wrapped <ArrowRight size={14} />
+          Study Wrapped
+          <ArrowRight size={14} />
         </button>
       </div>
-      <div className="period-row">
-        <div className="segmented" aria-label="Statistics period">
-          {(["week", "month", "year", "all"] as const).map((p) => (
+      <div
+        className="stats-view-tabs"
+        role="group"
+        aria-label="Statistics view"
+      >
+        {(["overview", "calendar", "mix"] as const).map((v) => (
+          <button
+            aria-pressed={view === v}
+            key={v}
+            onClick={() => changeView(v)}
+          >
+            {v === "overview"
+              ? "Overview"
+              : v === "calendar"
+                ? "Calendar"
+                : "Study mix"}
+          </button>
+        ))}
+      </div>
+      <div className="stats-filterbar">
+        <div className="segmented" role="group" aria-label="Statistics period">
+          {(view === "calendar"
+            ? (["month", "year"] as const)
+            : (["week", "month", "year", "all"] as const)
+          ).map((p) => (
             <button
               key={p}
-              aria-pressed={period === p}
+              aria-pressed={!custom && period === p}
               onClick={() => {
                 setPeriod(p);
-                setAnchor(now);
+                setCustom(null);
+                if (view !== "calendar") setAnchor(now);
+                if (view === "calendar")
+                  setCalendarScale(
+                    p === "year" || p === "all" ? "year" : "month",
+                  );
               }}
             >
               {p === "all" ? "All time" : p[0].toUpperCase() + p.slice(1)}
             </button>
           ))}
         </div>
-        <div className="period-step">
-          <button
-            className="icon"
-            aria-label="Previous period"
-            disabled={period === "all"}
-            onClick={() => setAnchor(shiftPeriod(period, anchor, -1))}
+        {(view !== "calendar" || calendarScale === "year") && (
+          <>
+            <div className="stats-date-controls">
+              <button
+                className="icon"
+                aria-label="Previous period"
+                disabled={!!custom || period === "all"}
+                onClick={() => {
+                  const at = shiftPeriod(period, anchor, -1);
+                  setAnchor(at);
+                  if (view === "calendar") setSelectedDay(dayKey(at));
+                }}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              {view === "calendar" ? (
+                <span className="calendar-period-label">
+                  {new Date(anchor).toLocaleDateString([], {
+                    month: calendarScale === "month" ? "long" : undefined,
+                    year: "numeric",
+                  })}
+                </span>
+              ) : (
+                <DateRangePicker
+                  label="Statistics dates"
+                  value={custom ?? currentRange}
+                  now={now}
+                  onChange={(v) => {
+                    if (!v.from) {
+                      setCustom(null);
+                      setPeriod("all");
+                      setAnchor(now);
+                    } else setCustom(v);
+                  }}
+                />
+              )}
+              <button
+                className="icon"
+                aria-label="Next period"
+                disabled={
+                  !!custom ||
+                  period === "all" ||
+                  shiftPeriod(period, anchor, 1) > now
+                }
+                onClick={() => {
+                  const at = shiftPeriod(period, anchor, 1);
+                  setAnchor(at);
+                  if (view === "calendar") setSelectedDay(dayKey(at));
+                }}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </>
+        )}
+        <label className="filter-select">
+          <span>Subject</span>
+          <select value={subject} onChange={(e) => setSubject(e.target.value)}>
+            <option value="">All subjects</option>
+            {subjects.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="filter-select">
+          <span>Study type</span>
+          <select
+            value={studyType}
+            onChange={(e) => setStudyType(e.target.value)}
           >
-            <ChevronLeft size={17} />
+            <option value="">All study types</option>
+            {studyTypes.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {(subject || studyType || custom) && (
+          <button className="text-button" onClick={reset}>
+            Reset
           </button>
-          <span>{label}</span>
-          <button
-            className="icon"
-            aria-label="Next period"
-            disabled={period === "all" || shiftPeriod(period, anchor, 1) > now}
-            onClick={() => setAnchor(shiftPeriod(period, anchor, 1))}
-          >
-            <ChevronRight size={17} />
-          </button>
-        </div>
+        )}
       </div>
-      <div className="insight-stats">
+      <div className="stat-cards">
         <div>
-          <span>Total study time</span>
+          <span>Study time</span>
           <strong>{duration(data.total)}</strong>
-        </div>
-        <div>
-          <span>Active days</span>
-          <strong>{data.activeDays}</strong>
-        </div>
-        <div>
-          <span>Average session</span>
-          <strong>{duration(data.average)}</strong>
+          <small>
+            {previous?.total
+              ? `${data.total >= previous.total ? "+" : ""}${Math.round(((data.total - previous.total) / previous.total) * 100)}% vs previous ${period}`
+              : null}
+          </small>
         </div>
         <div>
           <span>Sessions</span>
           <strong>{data.count}</strong>
+          <small>Average {duration(data.average)}</small>
+        </div>
+        <div>
+          <span>Active days</span>
+          <strong>{data.activeDays}</strong>
+          <small>
+            {data.activeDays
+              ? `${duration(data.total / data.activeDays)} per active day`
+              : "No activity in this range"}
+          </small>
         </div>
       </div>
-      {data.total === 0 ? (
-        <div className="empty compact">
-          <h2>No study time in this period</h2>
-          {finished.length ? (
-            <button
-              className="secondary"
-              onClick={() => setAnchor(shiftPeriod(period, anchor, -1))}
-              disabled={period === "all"}
-            >
-              Previous period
-            </button>
-          ) : (
-            <button className="secondary" onClick={onStart}>
-              Start a session
-            </button>
-          )}
-        </div>
-      ) : (
-        <>
-          <section className="insight-section">
-            <div className="section-heading">
-              <h2>Study time</h2>
-              <span>{duration(data.total)} recorded</span>
-            </div>
-            <Trend data={data} from={from} to={to} period={period} />
-          </section>
-          <div className="insight-columns">
-            <section>
-              <div className="section-heading">
-                <h2>Time distribution</h2>
-                <div className="segmented small">
-                  <button
-                    aria-pressed={breakdown === "subjects"}
-                    onClick={() => setBreakdown("subjects")}
-                  >
-                    Subjects
+      {view === "overview" ? (
+        data.total === 0 ? (
+          <section className="stats-empty panel">
+            <BarChart3 size={28} />
+            <h2>
+              {finished.length
+                ? "No sessions match these filters"
+                : "Your statistics start with one session"}
+            </h2>
+            <div>
+              {finished.length ? (
+                <>
+                  <button className="secondary" onClick={reset}>
+                    Reset filters
                   </button>
                   <button
-                    aria-pressed={breakdown === "types"}
-                    onClick={() => setBreakdown("types")}
+                    className="secondary"
+                    onClick={() => {
+                      setPeriod("all");
+                      setCustom(null);
+                    }}
                   >
-                    Study types
+                    All time
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="primary" onClick={onStart}>
+                    Start a session
+                  </button>
+                  <button className="secondary" onClick={onAdd}>
+                    Log past time
+                  </button>
+                </>
+              )}
+            </div>
+          </section>
+        ) : (
+          <>
+            <div className="stats-overview-grid">
+              <section className="panel trend-panel">
+                <div className="section-heading">
+                  <h2>Study time</h2>
+                  <button className="text-button" onClick={() => history()}>
+                    View sessions
+                    <ArrowRight size={14} />
                   </button>
                 </div>
-              </div>
-              <SubjectBreakdown
-                data={
-                  breakdown === "subjects"
-                    ? data
-                    : { ...data, subjects: data.studyTypes }
-                }
-                subjects={breakdown === "subjects" ? subjects : studyTypes}
-                previous={
-                  period === "all"
-                    ? undefined
-                    : breakdown === "subjects"
-                      ? previous
-                      : { ...previous, subjects: previous.studyTypes }
-                }
-              />
-            </section>
-            <section>
-              <div className="section-heading">
-                <h2>Time of day</h2>
-                <span>Study time by hour</span>
-              </div>
-              <div
-                className="hour-bars"
-                role="img"
-                aria-label={`Study time by hour. ${data.hours
-                  .map((ms, h) =>
-                    ms > 0 ? `${hourLabel(h)}: ${duration(ms)}` : null,
-                  )
-                  .filter(Boolean)
-                  .join(", ")}`}
-              >
-                {data.hours.map((ms, h) => (
-                  <div title={`${hourLabel(h)}: ${duration(ms)}`} key={h}>
-                    <span
-                      style={{
-                        height: `${ms ? Math.max(2, (ms / totalHours) * 100) : 1}%`,
-                      }}
-                    />
+                <div
+                  ref={chartRef}
+                  className="trend-scroll"
+                  tabIndex={0}
+                  aria-label="Study duration chart; scroll for more dates"
+                >
+                  <div className="labeled-trend">
+                    {buckets.map((b) => (
+                      <button
+                        key={b.key}
+                        disabled={b.from > dayKey(now)}
+                        aria-label={`${b.from}${b.to !== b.from ? ` through ${b.to}` : ""}: ${duration(b.ms)}. View sessions`}
+                        onClick={() => history({ from: b.from, to: b.to })}
+                      >
+                        <strong>{b.ms ? duration(b.ms) : ""}</strong>
+                        <div className="bar-space">
+                          <i
+                            style={{
+                              height: `${b.ms ? Math.max(2, (b.ms / max) * 100) : 0}%`,
+                            }}
+                          />
+                        </div>
+                        <span>{b.label}</span>
+                      </button>
+                    ))}
                   </div>
-                ))}
+                </div>
+                {chartOverflow && (
+                  <p className="scroll-cue">Scroll to see more dates.</p>
+                )}
+              </section>
+              <section className="panel">
+                <div className="section-heading">
+                  <h2>Time by</h2>
+                  <div
+                    className="segmented"
+                    role="group"
+                    aria-label="Breakdown"
+                  >
+                    <button
+                      aria-pressed={breakdown === "subjects"}
+                      onClick={() => setBreakdown("subjects")}
+                    >
+                      Subject
+                    </button>
+                    <button
+                      aria-pressed={breakdown === "types"}
+                      onClick={() => setBreakdown("types")}
+                    >
+                      Study type
+                    </button>
+                  </div>
+                </div>
+                <SubjectBreakdown
+                  data={
+                    breakdown === "subjects"
+                      ? data
+                      : { ...data, subjects: data.studyTypes }
+                  }
+                  subjects={breakdown === "subjects" ? subjects : studyTypes}
+                />
+              </section>
+            </div>
+            <details className="patterns panel">
+              <summary>
+                Study patterns{" "}
+                <span>
+                  {duration(mix.median)} median session · Most time at{" "}
+                  {hourLabel(hourPeak)}
+                </span>
+              </summary>
+              <div className="patterns-body">
+                <section>
+                  <h3>Time of day</h3>
+                  <div
+                    className="hour-pattern"
+                    role="img"
+                    aria-label={data.hours
+                      .map((ms, h) => `${hourLabel(h)} ${duration(ms)}`)
+                      .join(", ")}
+                  >
+                    {data.hours.map((ms, h) => (
+                      <div key={h} title={`${hourLabel(h)}: ${duration(ms)}`}>
+                        <i
+                          style={{
+                            height: `${(ms / Math.max(1, ...data.hours)) * 100}%`,
+                          }}
+                        />
+                        <small>{h % 6 === 0 ? hourLabel(h) : ""}</small>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+                <section>
+                  <h3>Session method</h3>
+                  <div className="mode-totals">
+                    {Object.entries(mix.modes).map(([mode, ms]) => (
+                      <div key={mode}>
+                        <span>
+                          {mode === "manual"
+                            ? "Manual entry"
+                            : MODE_NAMES[mode as keyof typeof MODE_NAMES]}
+                        </span>
+                        <strong>{duration(ms)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </section>
               </div>
-              <div className="chart-axis">
-                <span>12 AM</span>
-                <span>6 AM</span>
-                <span>12 PM</span>
-                <span>6 PM</span>
-              </div>
-            </section>
+            </details>
+          </>
+        )
+      ) : view === "mix" ? (
+        <section className="panel study-mix-panel">
+          <div className="section-heading">
+            <div>
+              <h2>Subject × study type</h2>
+              <p className="hint">Select a duration to see its sessions.</p>
+            </div>
+            <span>{duration(data.total)} total</span>
           </div>
-          {lines.length > 0 && (
-            <div className="observations">
-              {lines.map((line) => (
-                <p key={line}>{line}</p>
-              ))}
+          {data.total ? (
+            <div
+              className="mix-scroll"
+              tabIndex={0}
+              aria-label="Study mix; scroll horizontally for more study types"
+            >
+              <table className="mix-table">
+                <caption className="sr-only">
+                  Recorded study time by subject and study type
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Subject</th>
+                    {studyTypes
+                      .filter((t) =>
+                        Object.values(mix.matrix).some((row) => row[t.id]),
+                      )
+                      .map((t) => (
+                        <th scope="col" key={t.id}>
+                          {t.name}
+                        </th>
+                      ))}
+                    <th scope="col">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rankedSubjects(data, subjects).map((row) => (
+                    <tr key={row.id}>
+                      <th scope="row">{row.subject?.name}</th>
+                      {studyTypes
+                        .filter((t) =>
+                          Object.values(mix.matrix).some((row) => row[t.id]),
+                        )
+                        .map((t) => {
+                          const ms = mix.matrix[row.id]?.[t.id] ?? 0;
+                          return (
+                            <td key={t.id}>
+                              {ms ? (
+                                <button
+                                  className="mix-value"
+                                  onClick={() =>
+                                    history({
+                                      subject: row.id,
+                                      studyType: t.id,
+                                    })
+                                  }
+                                  aria-label={`${row.subject?.name}, ${t.name}, ${duration(ms)}. View sessions`}
+                                >
+                                  {duration(ms)}
+                                </button>
+                              ) : (
+                                <span className="muted">–</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      <td>
+                        <strong>{duration(row.ms)}</strong>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="empty compact">
+              <h3>No study time in this range</h3>
+              <button className="secondary" onClick={reset}>
+                Reset filters
+              </button>
             </div>
           )}
-        </>
-      )}
-      <section className="insight-section calendar-section">
-        <div className="section-heading">
-          <h2>Study calendar</h2>
-          <div>
-            <span className="muted">
-              {year} · {calendar.activeDays} active{" "}
-              {calendar.activeDays === 1 ? "day" : "days"}
-            </span>
-            <button
-              className="secondary"
-              onClick={() => setSelectedDay(dayKey(now))}
-            >
-              View day
-            </button>
+        </section>
+      ) : (
+        <section className="panel activity-panel">
+          <div className="section-heading">
+            <h2>Study calendar</h2>
           </div>
-        </div>
-        <div className="calendar-scroll">
-          <div className="calendar-months" aria-hidden="true">
-            {Array.from({ length: 12 }, (_, month) => (
-              <span key={month}>
-                {new Date(year, month, 1).toLocaleDateString([], {
-                  month: "short",
-                })}
-              </span>
-            ))}
-          </div>
-          <div className="calendar" aria-label={`${year} study calendar`}>
-            {cells.map((at, index) => {
-              const key = at === null ? "" : dayKey(at);
-              const ms = calendar.days[key]?.total ?? 0;
-              return at === null ? (
-                <span key={`blank-${index}`} />
-              ) : (
-                <button
-                  key={key}
-                  aria-label={`${key}: ${duration(ms)}. View subjects.`}
-                  title={`${key}: ${duration(ms)}`}
-                  disabled={at > dayStart(now)}
-                  data-level={
-                    ms === 0
-                      ? 0
-                      : ms / peak < 0.25
-                        ? 1
-                        : ms / peak < 0.5
-                          ? 2
-                          : ms / peak < 0.75
-                            ? 3
-                            : 4
-                  }
-                  onClick={() => setSelectedDay(key)}
-                />
-              );
-            })}
-          </div>
-        </div>
-        <div className="calendar-footer">
-          <span>
-            Time zone:
-            {Intl.DateTimeFormat().resolvedOptions().timeZone}.
-          </span>
-          <span>
-            Less <i data-level="0" />
-            <i data-level="1" />
-            <i data-level="2" />
-            <i data-level="3" />
-            <i data-level="4" /> More
-          </span>
-        </div>
-      </section>
-      {selectedDay && (
-        <Dialog
-          title={new Date(`${selectedDay}T12:00`).toLocaleDateString([], {
-            dateStyle: "long",
-          })}
-          onClose={() => setSelectedDay(null)}
-        >
-          <p className="dialog-copy">
-            {duration(inspectedDay?.total ?? 0)} recorded.
-          </p>
-          <label className="inspect-date">
-            Date
-            <input
-              aria-label="Inspect date"
-              type="date"
-              max={dayKey(now)}
-              value={selectedDay}
-              onChange={(e) => {
-                if (e.target.value) setSelectedDay(e.target.value);
-              }}
-            />
-          </label>
-          {inspectedDay?.total ? (
-            <SubjectBreakdown data={inspectedDay} subjects={subjects} />
+          {calendarScale === "year" ? (
+            <div className="year-month-grid">
+              {Array.from({ length: 12 }, (_, m) => {
+                const at = +new Date(year, m, 1, 12),
+                  next = shiftMonth(at, 1),
+                  monthData = analyze(
+                    scoped,
+                    dayStart(at),
+                    dayStart(next),
+                    Infinity,
+                  );
+                return (
+                  <button
+                    className="year-month"
+                    key={m}
+                    disabled={monthStart(at) > monthStart(now)}
+                    onClick={() => {
+                      setCalendarScale("month");
+                      setPeriod("month");
+                      setAnchor(at);
+                      setCustom(null);
+                      setSelectedDay(dayKey(at));
+                    }}
+                  >
+                    <span>
+                      <strong>
+                        {new Date(at).toLocaleDateString([], { month: "long" })}
+                      </strong>
+                      <small>{duration(monthData.total)}</small>
+                    </span>
+                    <div
+                      className="mini-month"
+                      role="img"
+                      aria-label={`${monthData.activeDays} active days`}
+                    >
+                      {Array.from(
+                        { length: new Date(year, m + 1, 0).getDate() },
+                        (_, i) => {
+                          const key = dayKey(+new Date(year, m, i + 1));
+                          return (
+                            <i
+                              key={i}
+                              data-active={
+                                !!yearData.days[key]?.total || undefined
+                              }
+                            />
+                          );
+                        },
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           ) : (
-            <p className="hint">No study time was recorded on this day.</p>
+            <div className="activity-month-layout">
+              <MonthCalendar
+                month={monthStart(anchor)}
+                onMonth={(at) => {
+                  setAnchor(at);
+                  setPeriod("month");
+                  setCustom(null);
+                  setSelectedDay(dayKey(at));
+                }}
+                selected={selectedDay}
+                onSelect={setSelectedDay}
+                totals={yearData.days}
+                now={now}
+              />
+              <aside className="day-detail">
+                <span className="eyebrow">Selected day</span>
+                <h3>
+                  {new Date(dateAt(selectedDay)).toLocaleDateString([], {
+                    month: "short",
+                    day: "numeric",
+                    weekday: "long",
+                  })}
+                </h3>
+                <strong className="day-total">{duration(dayData.total)}</strong>
+                <span className="muted">
+                  {dayData.count} {dayData.count === 1 ? "session" : "sessions"}
+                </span>
+                {dayData.total ? (
+                  <>
+                    <SubjectBreakdown data={dayData} subjects={subjects} />
+                    <button
+                      className="secondary"
+                      onClick={() =>
+                        history({ from: selectedDay, to: selectedDay })
+                      }
+                    >
+                      View day's sessions
+                      <ArrowRight size={14} />
+                    </button>
+                  </>
+                ) : (
+                  <div className="day-empty">
+                    <CalendarDays size={22} />
+                    <span>No study time</span>
+                    <button className="text-button" onClick={onAdd}>
+                      Log past time
+                    </button>
+                  </div>
+                )}
+              </aside>
+            </div>
           )}
-        </Dialog>
+          <p className="calendar-zone">
+            Dates use {Intl.DateTimeFormat().resolvedOptions().timeZone}.
+          </p>
+        </section>
       )}
       {recap && (
         <Wrapped

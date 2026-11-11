@@ -210,7 +210,8 @@ fn data_action_sync(app: &tauri::AppHandle, action: &str) -> Result<IoResult> {
                     study_types: backup.study_types.len(),
                     sessions: backup.sessions.len(),
                     exported_at: backup.exported_at,
-                    has_active: backup.sessions.iter().any(|s| s.ended_at.is_none()),
+                    has_active: backup.sessions.iter().any(|s| s.ended_at.is_none())
+                        || backup.timer_state.break_state.is_some(),
                 });
                 state.0.lock().map_err(error)?.pending = Some(backup);
             }

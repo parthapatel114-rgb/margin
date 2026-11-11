@@ -54,6 +54,7 @@ export interface Settings {
   shortBreakMinutes: number;
   longBreakMinutes: number;
   countdownMinutes: number;
+  dailyGoalMinutes: number;
 }
 export interface Snapshot {
   subjects: Subject[];
@@ -81,6 +82,7 @@ export type Command =
     }
   | {
       kind: "start";
+      note: string;
       subjectId: string;
       studyTypeId: string;
       timeZone: string;
@@ -129,3 +131,16 @@ export interface IoResult {
 }
 export type Mutate = (command: Command) => Promise<Snapshot | null>;
 export const timeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+export interface SessionDraft {
+  subject: string;
+  studyType: string;
+  note?: string;
+  version: number;
+}
+export interface HistoryFilter {
+  subject?: string;
+  studyType?: string;
+  from?: string;
+  to?: string;
+}

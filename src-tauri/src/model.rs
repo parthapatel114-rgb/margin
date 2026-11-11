@@ -113,6 +113,8 @@ pub struct Settings {
     pub long_break_minutes: u32,
     #[serde(default = "default_countdown")]
     pub countdown_minutes: u32,
+    #[serde(default)]
+    pub daily_goal_minutes: u32,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -169,6 +171,8 @@ pub enum Command {
         id: String,
     },
     Start {
+        #[serde(default)]
+        note: String,
         subject_id: String,
         study_type_id: String,
         time_zone: String,

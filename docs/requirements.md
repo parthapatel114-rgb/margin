@@ -14,3 +14,11 @@ No further product scope has been added. Optional tray integration, automatic sc
 - Install and apply the relevant jakubkrehel/skills interface skills.
 - Add switchable Stopwatch, Pomodoro and Countdown modes, with editable durations and correct persisted statistics. Breaks contribute no study time.
 - Always pin the native mini timer and remove the pin toggle and preference.
+
+## User amendments: compact experience, research and calendars
+
+- Address the remaining empty space and the first-session experience across the app.
+- Simplify the statistics view and make its important information easier to scan.
+- Research competitors, list a concrete set of improvements that preserve the core, and implement the selected list completely.
+- Improve History's date-filter calendar and make it match every app theme.
+- The implemented list is in docs/improvement-plan.md. No cloud, account, social, surveillance or task-management system is introduced.

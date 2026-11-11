@@ -59,3 +59,19 @@ Optional system tray integration, automatic scheduled backups and PNG recap expo
 Not verified in this revision: 200% text zoom, RTL/pseudo-localized strings, full VoiceOver interaction, every theme/state combination, Windows/Intel runtime, and an actual hardware sleep/wake cycle. These remain explicit boundaries; tests simulate timestamp advancement and restart.
 
 The packaged 0.2.0 release was opened successfully against the normal application-data folder. Its populated preferences were retained (Forest / IBM Plex Mono), schema 2 upgraded to 3, and the pre-existing zero-session history remained zero; no Preview records appeared. The packaged app passed strict deep codesign verification, and the DMG checksum was valid under `hdiutil verify`.
+
+## 0.3.0 workspace, statistics and calendar
+
+- Production frontend/native release builds passed. Strict TypeScript, ESLint, Rust formatting and Clippy with warnings denied passed.
+- 26 Rust tests passed, including populated schema 3→4 preservation, optional target bounds and backup compatibility, and intention validation/persistence.
+- 21 JavaScript tests passed in each of America/New_York, UTC, Asia/Kathmandu and Australia/Lord_Howe. Coverage includes calendar grids, DST range presets, reversed inclusive ranges, clipped study-mix totals and separate manual-entry methods.
+- 108 declared contrast pairs passed the existing 4.5:1 text and 3:1 control/focus/chart thresholds.
+- Native Preview: first-use suggestions, subject/type, intention, Start/Finish, saved note search, optional daily target and repeat preparation checked. No fabricated records appear on first use.
+- Native populated Preview: Overview, monthly day totals/detail, yearly overview, study mix and filters inspected. A Math/Practice cell opened 10 History entries totaling 4h 10m; Last 7 days returned seven entries totaling 2h 55m.
+- Native date picker: reversed selections normalized; Tab and arrow keys crossed Nov 1 → Oct 31 with matching focus. Around 320 CSS pixels, Today/History/Statistics reflowed, chart overflow had a visible cue and the date dialog scrolled to its Apply action.
+- Native fullscreen entered the timer view; Escape returned to Today. Mini timer opened with the same context and no redundant pin control.
+- Populated screenshots use 30 synthetic QA fixtures plus one real native verification session in an isolated Preview database. None of these records are bundled or copied into the normal app.
+
+Not verified in this pass: 200% text zoom, RTL/pseudo-localized strings, full VoiceOver operation, every theme/font/state combination, Windows/Intel macOS runtime or hardware sleep/wake. The automated timekeeping tests simulate timestamp advancement and restart.
+
+The packaged 0.3.0 app passed strict deep codesign verification, and its DMG passed `hdiutil verify`. The canonical release was reopened successfully. Against a consistent snapshot immediately before app replacement, all rows in sessions, subjects, study_types and settings were unchanged: zero sessions, zero subjects, four study types and eleven settings. The normal database was already at schema 4 when this final replacement check began; the populated 3→4 migration claim is therefore based on the dedicated Rust migration test, not an observed production transition. No Preview records entered the normal database.

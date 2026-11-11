@@ -40,6 +40,9 @@ pub fn validate_settings(s: &Settings) -> Result<()> {
     {
         return Err("Use timer durations between 1 and 240 minutes.".into());
     }
+    if s.daily_goal_minutes > 1440 {
+        return Err("Set a daily target between 0 and 1440 minutes.".into());
+    }
     Ok(())
 }
 impl Database {
@@ -53,7 +56,7 @@ impl Database {
         let version: u32 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(err)?;
-        if version > 3 {
+        if version > 4 {
             return Err(
                 "This database was created by a newer Margin version. Please update Margin.".into(),
             );
@@ -73,6 +76,12 @@ impl Database {
         if version < 3 {
             let tx = conn.transaction().map_err(err)?;
             tx.execute_batch(include_str!("../migrations/003_timer_modes.sql"))
+                .map_err(err)?;
+            tx.commit().map_err(err)?;
+        }
+        if version < 4 {
+            let tx = conn.transaction().map_err(err)?;
+            tx.execute_batch(include_str!("../migrations/004_daily_goal.sql"))
                 .map_err(err)?;
             tx.commit().map_err(err)?;
         }
@@ -145,6 +154,7 @@ impl Database {
             short_break_minutes: get("shortBreakMinutes")?.parse().map_err(err)?,
             long_break_minutes: get("longBreakMinutes")?.parse().map_err(err)?,
             countdown_minutes: get("countdownMinutes")?.parse().map_err(err)?,
+            daily_goal_minutes: get("dailyGoalMinutes")?.parse().map_err(err)?,
         };
         Ok(Snapshot {
             subjects,
@@ -160,7 +170,7 @@ impl Database {
         let s = self.snapshot()?;
         Ok(Backup {
             format: "margin-study".into(),
-            version: 3,
+            version: 4,
             timer_state: s.timer_state,
             exported_at: now(),
             subjects: s.subjects,
@@ -331,6 +341,7 @@ impl Database {
                 .map_err(err)?;
             }
             Command::Start {
+                note,
                 subject_id,
                 study_type_id,
                 time_zone,
@@ -340,6 +351,7 @@ impl Database {
                 subject_exists(&tx, &subject_id)?;
                 type_exists(&tx, &study_type_id)?;
                 zone_valid(&time_zone)?;
+                note_valid(&note)?;
                 let active: bool = tx
                     .query_row(
                         "SELECT EXISTS(SELECT 1 FROM sessions WHERE ended_at IS NULL)",
@@ -363,7 +375,7 @@ impl Database {
                 }
                 save_timer_state(&tx, &runtime)?;
                 let key = id();
-                tx.execute("INSERT INTO sessions(id,subject_id,started_at,ended_at,note,source,time_zone,updated_at,study_type_id,timer_mode,target_ms) VALUES(?,?,?,NULL,'','timer',?,?,?,?,?)", params![key,subject_id,at,time_zone,at,study_type_id,timer_mode,target_ms]).map_err(err)?;
+                tx.execute("INSERT INTO sessions(id,subject_id,started_at,ended_at,note,source,time_zone,updated_at,study_type_id,timer_mode,target_ms) VALUES(?,?,?,NULL,?,'timer',?,?,?,?,?)", params![key,subject_id,at,note,time_zone,at,study_type_id,timer_mode,target_ms]).map_err(err)?;
                 tx.execute("INSERT INTO segments VALUES(?,?,NULL)", params![key, at])
                     .map_err(err)?;
                 tx.execute(
@@ -549,6 +561,7 @@ impl Database {
                     "theme" => ["light", "dark", "warm", "slate", "forest", "rose"]
                         .contains(&value.as_str()),
                     "font" => ["inter", "dm-sans", "plex-mono"].contains(&value.as_str()),
+                    "dailyGoalMinutes" => value.parse::<u32>().is_ok_and(|n| n <= 1440),
                     "timerMode" => ["stopwatch", "pomodoro", "countdown"].contains(&value.as_str()),
                     "focusMinutes" | "shortBreakMinutes" | "longBreakMinutes"
                     | "countdownMinutes" => {
@@ -640,6 +653,7 @@ impl Database {
             ("shortBreakMinutes", s.short_break_minutes.to_string()),
             ("longBreakMinutes", s.long_break_minutes.to_string()),
             ("countdownMinutes", s.countdown_minutes.to_string()),
+            ("dailyGoalMinutes", s.daily_goal_minutes.to_string()),
         ] {
             tx.execute("INSERT INTO settings VALUES(?,?)", params![key, value])
                 .map_err(err)?;
@@ -723,7 +737,7 @@ fn note_valid(note: &str) -> Result<()> {
     }
 }
 pub fn validate_backup(b: &Backup, at: i64) -> Result<()> {
-    if b.format != "margin-study" || !(1..=3).contains(&b.version) {
+    if b.format != "margin-study" || !(1..=4).contains(&b.version) {
         return Err("This is not a supported Margin backup.".into());
     }
     validate_settings(&b.settings)?;

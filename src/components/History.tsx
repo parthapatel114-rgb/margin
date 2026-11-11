@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
-import { dayKey, duration, elapsed } from "../lib/analytics";
+import { Pencil, Plus, Trash2, RotateCcw, Search } from "lucide-react";
+import { dayKey, duration, elapsed, analyze } from "../lib/analytics";
 import type { Mutate, Session, Subject } from "../lib/types";
+import { DateRangePicker } from "./Calendar";
+import { rangeBounds } from "../lib/dates";
+import type { HistoryFilter } from "../lib/types";
 import { Confirm } from "./Dialog";
 export function SessionRows({
   sessions,
@@ -9,12 +12,14 @@ export function SessionRows({
   studyTypes,
   onEdit,
   onDelete,
+  onRepeat,
 }: {
   sessions: Session[];
   subjects: Subject[];
   studyTypes: Subject[];
   onEdit: (s: Session) => void;
   onDelete?: (s: Session) => void;
+  onRepeat?: (s: Session) => void;
 }) {
   return (
     <div className="session-list">
@@ -54,7 +59,12 @@ export function SessionRows({
               </span>
               {s.note && <p>{s.note}</p>}
             </div>
-            <span className="session-duration">{duration(elapsed(s))}</span>
+            <span
+              className="session-duration"
+              title="Full session duration, excluding pauses"
+            >
+              {duration(elapsed(s))}
+            </span>
             <button
               className="icon"
               aria-label={`Edit ${subject?.name ?? ""} session`}
@@ -62,6 +72,16 @@ export function SessionRows({
             >
               <Pencil size={14} />
             </button>
+            {onRepeat && (
+              <button
+                className="icon"
+                title="Repeat session"
+                aria-label={`Repeat ${subject?.name ?? ""} session`}
+                onClick={() => onRepeat(s)}
+              >
+                <RotateCcw size={14} />
+              </button>
+            )}
             {onDelete && (
               <button
                 className="icon"
@@ -85,6 +105,9 @@ export function History({
   busy,
   onEdit,
   onAdd,
+  onRepeat,
+  initialFilter,
+  now,
 }: {
   sessions: Session[];
   subjects: Subject[];
@@ -93,25 +116,64 @@ export function History({
   busy: boolean;
   onEdit: (s: Session) => void;
   onAdd: () => void;
+  onRepeat: (s: Session) => void;
+  initialFilter?: HistoryFilter;
+  now: number;
 }) {
-  const [subject, setSubject] = useState("");
-  const [studyType, setStudyType] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [subject, setSubject] = useState(initialFilter?.subject ?? "");
+  const [studyType, setStudyType] = useState(initialFilter?.studyType ?? "");
+  const [from, setFrom] = useState(initialFilter?.from ?? "");
+  const [to, setTo] = useState(initialFilter?.to ?? "");
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState("newest");
+  const [rangeFrom, rangeTo] = rangeBounds({ from, to }, now);
   const [removing, setRemoving] = useState<Session | null>(null);
   const [limit, setLimit] = useState(100);
   const filtered = useMemo(
     () =>
-      sessions.filter(
-        (s) =>
-          s.endedAt !== null &&
-          (!subject || s.subjectId === subject) &&
-          (!studyType || s.studyTypeId === studyType) &&
-          (!from || dayKey(s.startedAt) >= from) &&
-          (!to || dayKey(s.startedAt) <= to),
-      ),
-    [sessions, subject, studyType, from, to],
+      sessions
+        .filter(
+          (s) =>
+            s.endedAt !== null &&
+            (!subject || s.subjectId === subject) &&
+            (!studyType || s.studyTypeId === studyType) &&
+            ((!from && !to) ||
+              s.segments.some(
+                (p) => p.start < rangeTo && (p.end ?? now) > rangeFrom,
+              )) &&
+            (!query.trim() ||
+              [
+                s.note,
+                subjects.find((x) => x.id === s.subjectId)?.name,
+                studyTypes.find((x) => x.id === s.studyTypeId)?.name,
+              ]
+                .join(" ")
+                .toLocaleLowerCase()
+                .includes(query.trim().toLocaleLowerCase())),
+        )
+        .sort((a, b) =>
+          sort === "longest"
+            ? elapsed(b) - elapsed(a)
+            : sort === "oldest"
+              ? a.startedAt - b.startedAt
+              : b.startedAt - a.startedAt,
+        ),
+    [
+      sessions,
+      subject,
+      studyType,
+      from,
+      to,
+      rangeFrom,
+      rangeTo,
+      query,
+      sort,
+      subjects,
+      studyTypes,
+      now,
+    ],
   );
+  const hasFinished = sessions.some((s) => s.endedAt !== null);
   const groups = useMemo(() => {
     const map = new Map<string, Session[]>();
     for (const s of filtered.slice(0, limit)) {
@@ -128,6 +190,19 @@ export function History({
           <Plus size={16} />
           Add time
         </button>
+      </div>
+      <div className="history-search">
+        <Search size={16} />
+        <input
+          aria-label="Search sessions"
+          type="search"
+          placeholder="Search subjects, study types or notes"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setLimit(100);
+          }}
+        />
       </div>
       <div className="filters">
         <label>
@@ -161,28 +236,44 @@ export function History({
             ))}
           </select>
         </label>
-        <label>
-          <span>From</span>
-          <input
-            aria-label="From date"
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
+        <div className="filter-date">
+          <span>Date range</span>
+          <DateRangePicker
+            value={{ from, to }}
+            now={now}
+            onChange={(v) => {
+              setFrom(v.from);
+              setTo(v.to);
+              setLimit(100);
+            }}
           />
-        </label>
+        </div>
         <label>
-          <span>To</span>
-          <input
-            aria-label="To date"
-            type="date"
-            value={to}
-            min={from}
-            onChange={(e) => setTo(e.target.value)}
-          />
+          <span>Sort</span>
+          <select value={sort} onChange={(e) => setSort(e.target.value)}>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="longest">Longest first</option>
+          </select>
         </label>
+        {(subject || studyType || from || to || query) && (
+          <button
+            className="text-button"
+            onClick={() => {
+              setSubject("");
+              setStudyType("");
+              setFrom("");
+              setTo("");
+              setQuery("");
+            }}
+          >
+            Clear filters
+          </button>
+        )}
         <span className="filter-summary">
-          {filtered.length} sessions ·{" "}
-          {duration(filtered.reduce((n, s) => n + elapsed(s), 0))}
+          {filtered.length} {filtered.length === 1 ? "session" : "sessions"} ·{" "}
+          {duration(analyze(filtered, rangeFrom, rangeTo, now).total)}
+          {from || to ? " in range" : ""}
         </span>
       </div>
       {groups.length ? (
@@ -205,15 +296,16 @@ export function History({
               studyTypes={studyTypes}
               onEdit={onEdit}
               onDelete={setRemoving}
+              onRepeat={onRepeat}
             />
           </section>
         ))
       ) : (
         <div className="empty">
           <h2>
-            {sessions.length ? "No matching sessions" : "No sessions yet"}
+            {hasFinished ? "No matching sessions" : "No finished sessions yet"}
           </h2>
-          {sessions.length ? (
+          {hasFinished ? (
             <button
               className="secondary"
               onClick={() => {
@@ -221,6 +313,7 @@ export function History({
                 setStudyType("");
                 setFrom("");
                 setTo("");
+                setQuery("");
               }}
             >
               Clear filters

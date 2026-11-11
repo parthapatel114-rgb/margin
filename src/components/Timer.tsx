@@ -25,6 +25,7 @@ import {
   type Session,
   type Snapshot,
   type TimerMode,
+  type SessionDraft,
 } from "../lib/types";
 import { Confirm } from "./Dialog";
 import { COLORS } from "../lib/palette";
@@ -44,6 +45,7 @@ export function Timer({
   onFinish,
   onMain,
   onCloseMini,
+  draft,
 }: {
   data: Snapshot;
   active?: Session;
@@ -59,6 +61,7 @@ export function Timer({
   onFinish: (id: string) => void;
   onMain: () => void;
   onCloseMini: () => void;
+  draft?: SessionDraft;
 }) {
   const breakState = data.timerState.break;
   const mode: TimerMode =
@@ -79,8 +82,11 @@ export function Timer({
             breakState?.studyTypeId ??
             data.settings.lastStudyType) && !t.archived,
     ) ?? data.studyTypes.find((t) => !t.archived);
-  const [typed, setTyped] = useState<string | null>(null);
-  const [typedType, setTypedType] = useState<string | null>(null);
+  const [typed, setTyped] = useState<string | null>(draft?.subject ?? null);
+  const [typedType, setTypedType] = useState<string | null>(
+    draft?.studyType ?? null,
+  );
+  const [intention, setIntention] = useState(draft?.note ?? "");
   const [durationOverride, setDurationOverride] = useState<number | null>(null);
   const idleTarget =
     mode === "stopwatch"
@@ -193,12 +199,14 @@ export function Timer({
           subjectId: subject.id,
           studyTypeId: type.id,
           timeZone: timeZone(),
+          note: intention.trim(),
           timerMode: mode,
           targetMs: idleTarget,
         }))
       ) {
         setTyped(null);
         setTypedType(null);
+        setIntention("");
       }
     } finally {
       setStarting(false);
@@ -408,155 +416,231 @@ export function Timer({
               </button>
             </div>
           </div>
-          {active || breakState || focus ? (
-            context
-          ) : (
-            <div className="session-inputs">
-              <label htmlFor="subject-field">
-                <span>Subject</span>
-                <span className="input-with-action">
-                  <input
-                    ref={subjectInput}
-                    id="subject-field"
-                    name="subject"
-                    aria-invalid={fieldError === "Enter a subject."}
-                    aria-describedby={
-                      fieldError ? "timer-input-error" : undefined
-                    }
-                    list="subject-options"
-                    maxLength={80}
-                    placeholder="e.g. Data Structures"
-                    autoComplete="off"
-                    value={text}
-                    onChange={(e) => setTyped(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        void start();
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="icon"
-                    aria-label="Manage subjects"
-                    title="Manage subjects"
-                    onClick={onSubjects}
-                  >
-                    <SlidersHorizontal size={15} />
-                  </button>
-                </span>
-              </label>
-              <datalist id="subject-options">
-                {data.subjects
-                  .filter((s) => !s.archived)
-                  .map((s) => (
-                    <option key={s.id} value={s.name} />
-                  ))}
-              </datalist>
-              <label htmlFor="study-type-field">
-                <span>Study type</span>
-                <span className="input-with-action">
-                  <input
-                    ref={typeInput}
-                    id="study-type-field"
-                    name="studyType"
-                    aria-invalid={fieldError === "Enter a study type."}
-                    aria-describedby={
-                      fieldError ? "timer-input-error" : undefined
-                    }
-                    list="study-type-options"
-                    maxLength={80}
-                    placeholder="e.g. Reviewing"
-                    autoComplete="off"
-                    value={typeText}
-                    onChange={(e) => setTypedType(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        void start();
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="icon"
-                    aria-label="Manage study types"
-                    title="Manage study types"
-                    onClick={onTypes}
-                  >
-                    <SlidersHorizontal size={15} />
-                  </button>
-                </span>
-              </label>
-              <datalist id="study-type-options">
-                {data.studyTypes
-                  .filter((t) => !t.archived)
-                  .map((t) => (
-                    <option key={t.id} value={t.name} />
-                  ))}
-              </datalist>
-            </div>
-          )}
-          {fieldError && (
-            <p className="field-error" role="alert" id="timer-input-error">
-              {fieldError}
-            </p>
-          )}
-          <div className="timer-display">
-            <div className="timer-status">
-              {!focus && (
+          <div className="timer-workbench">
+            <div className="timer-entry">
+              {active || breakState || focus ? (
+                context
+              ) : (
+                <div className="session-inputs">
+                  <label htmlFor="subject-field">
+                    <span>Subject</span>
+                    <span className="input-with-action">
+                      <input
+                        ref={subjectInput}
+                        id="subject-field"
+                        name="subject"
+                        aria-invalid={fieldError === "Enter a subject."}
+                        aria-describedby={
+                          fieldError ? "timer-input-error" : undefined
+                        }
+                        list="subject-options"
+                        maxLength={80}
+                        placeholder="e.g. Data Structures"
+                        autoComplete="off"
+                        value={text}
+                        onChange={(e) => setTyped(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void start();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="icon"
+                        aria-label="Manage subjects"
+                        title="Manage subjects"
+                        onClick={onSubjects}
+                      >
+                        <SlidersHorizontal size={15} />
+                      </button>
+                    </span>
+                  </label>
+                  <datalist id="subject-options">
+                    {data.subjects
+                      .filter((s) => !s.archived)
+                      .map((s) => (
+                        <option key={s.id} value={s.name} />
+                      ))}
+                  </datalist>
+                  <label htmlFor="study-type-field">
+                    <span>Study type</span>
+                    <span className="input-with-action">
+                      <input
+                        ref={typeInput}
+                        id="study-type-field"
+                        name="studyType"
+                        aria-invalid={fieldError === "Enter a study type."}
+                        aria-describedby={
+                          fieldError ? "timer-input-error" : undefined
+                        }
+                        list="study-type-options"
+                        maxLength={80}
+                        placeholder="e.g. Reviewing"
+                        autoComplete="off"
+                        value={typeText}
+                        onChange={(e) => setTypedType(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void start();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="icon"
+                        aria-label="Manage study types"
+                        title="Manage study types"
+                        onClick={onTypes}
+                      >
+                        <SlidersHorizontal size={15} />
+                      </button>
+                    </span>
+                  </label>
+                  <datalist id="study-type-options">
+                    {data.studyTypes
+                      .filter((t) => !t.archived)
+                      .map((t) => (
+                        <option key={t.id} value={t.name} />
+                      ))}
+                  </datalist>
+                </div>
+              )}
+              {fieldError && (
+                <p className="field-error" role="alert" id="timer-input-error">
+                  {fieldError}
+                </p>
+              )}
+
+              {!focus && !active && !breakState && (
                 <>
-                  <i
-                    className={running ? "status-dot running" : "status-dot"}
-                  />
-                  {status}
+                  {!data.subjects.some((s) => !s.archived) && (
+                    <div
+                      className="subject-suggestions"
+                      role="group"
+                      aria-label="Suggested subjects"
+                    >
+                      {[
+                        "Mathematics",
+                        "Biology",
+                        "Computer Science",
+                        "Languages",
+                      ].map((name) => (
+                        <button
+                          className="suggestion-chip"
+                          key={name}
+                          aria-pressed={text === name}
+                          onClick={() => {
+                            setTyped(name);
+                            setFieldError("");
+                          }}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div
+                    className="type-chips"
+                    role="group"
+                    aria-label="Quick study types"
+                  >
+                    {data.studyTypes
+                      .filter((t) => !t.archived)
+                      .slice(0, 4)
+                      .map((t) => (
+                        <button
+                          className="suggestion-chip"
+                          key={t.id}
+                          aria-pressed={typeText === t.name}
+                          onClick={() => setTypedType(t.name)}
+                        >
+                          {t.name}
+                        </button>
+                      ))}
+                  </div>
+                  <label className="intention-field">
+                    <span>
+                      Session intention <small>Optional</small>
+                    </span>
+                    <input
+                      maxLength={2000}
+                      placeholder="e.g. Practice integration problems"
+                      value={intention}
+                      onChange={(e) => setIntention(e.target.value)}
+                    />
+                  </label>
                 </>
               )}
-              {mode === "pomodoro" && !breakState && (
-                <span className="cycle-count">
-                  Focus {(data.timerState.cycle % 4) + 1} of 4
-                </span>
+              {active?.note && !focus && (
+                <details className="active-intention">
+                  <summary>Session intention</summary>
+                  <p>{active.note}</p>
+                  {active.note.length > 240 && (
+                    <small className="scroll-cue">
+                      Scroll to read the full intention.
+                    </small>
+                  )}
+                </details>
+              )}
+              {!focus && !active && !breakState && mode !== "stopwatch" && (
+                <div className="mode-options">
+                  <DurationField
+                    key={mode === "pomodoro" ? "focus" : "countdown"}
+                    label={mode === "pomodoro" ? "Focus" : "Duration"}
+                    onValueChange={setDurationOverride}
+                    setting={
+                      mode === "pomodoro" ? "focusMinutes" : "countdownMinutes"
+                    }
+                    value={
+                      mode === "pomodoro"
+                        ? data.settings.focusMinutes
+                        : data.settings.countdownMinutes
+                    }
+                    mutate={mutate}
+                    busy={busy}
+                  />
+                  {mode === "pomodoro" && (
+                    <DurationField
+                      key="shortBreak"
+                      label="Break"
+                      setting="shortBreakMinutes"
+                      value={data.settings.shortBreakMinutes}
+                      mutate={mutate}
+                      busy={busy}
+                    />
+                  )}
+                </div>
               )}
             </div>
-            <div
-              className="clock"
-              role="timer"
-              aria-label={`${breakState ? "Break remaining" : mode === "stopwatch" ? "Elapsed time" : "Time remaining"} ${displayClock(ms, breakState ? "break" : mode)}`}
-            >
-              {displayClock(ms, breakState ? "break" : mode)}
+            <div className="timer-display">
+              <div className="timer-status">
+                {!focus && (
+                  <>
+                    <i
+                      className={running ? "status-dot running" : "status-dot"}
+                    />
+                    {status}
+                  </>
+                )}
+                {mode === "pomodoro" && !breakState && (
+                  <span className="cycle-count">
+                    Focus {(data.timerState.cycle % 4) + 1} of 4
+                  </span>
+                )}
+              </div>
+              <div
+                className="clock"
+                role="timer"
+                aria-label={`${breakState ? "Break remaining" : mode === "stopwatch" ? "Elapsed time" : "Time remaining"} ${displayClock(ms, breakState ? "break" : mode)}`}
+              >
+                {displayClock(ms, breakState ? "break" : mode)}
+              </div>
+              {controls}
             </div>
-            {controls}
           </div>
-          {!focus && !active && !breakState && mode !== "stopwatch" && (
-            <div className="mode-options">
-              <DurationField
-                key={mode === "pomodoro" ? "focus" : "countdown"}
-                label={mode === "pomodoro" ? "Focus" : "Duration"}
-                onValueChange={setDurationOverride}
-                setting={
-                  mode === "pomodoro" ? "focusMinutes" : "countdownMinutes"
-                }
-                value={
-                  mode === "pomodoro"
-                    ? data.settings.focusMinutes
-                    : data.settings.countdownMinutes
-                }
-                mutate={mutate}
-                busy={busy}
-              />
-              {mode === "pomodoro" && (
-                <DurationField
-                  key="shortBreak"
-                  label="Break"
-                  setting="shortBreakMinutes"
-                  value={data.settings.shortBreakMinutes}
-                  mutate={mutate}
-                  busy={busy}
-                />
-              )}
-            </div>
-          )}
         </>
       )}
       {progress !== null && (active || breakState) && (

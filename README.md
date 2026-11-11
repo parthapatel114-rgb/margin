@@ -13,9 +13,10 @@ Choose a subject and a study type, then start. Reviewing calculus and practicing
 - Stopwatch, Pomodoro and Countdown with pause, resume, restart recovery and optional notes.
 - Subjects and study types you can create inline, rename, color and archive. Unused choices can be deleted.
 - A separate, always-on-top native mini timer and fullscreen focus.
-- Editable session history, manual entries, subject and study-type filters.
-- Period totals, subject/type distribution, hourly activity and a study calendar.
+- Searchable session history, manual entries, sorting, repeat preparation and subject/study-type/date filters.
+- Filtered statistics with labeled trends, subject/type distributions, a subject × study-type matrix and month/year calendars.
 - Monthly and yearly Study Wrapped recaps based on recorded sessions.
+- Optional session intentions and daily study targets, disabled by default.
 - Six appearance presets and three fonts, all available offline.
 - JSON backups, CSV history and validated restore with a safety backup.
 
@@ -31,7 +32,7 @@ Windows x64 packaging is configured for NSIS and MSI. The Windows workflow must 
 
 ## Using Margin
 
-Type a subject beside the timer, choose a study type, and press Start. New names are created inline. Finish saves with one click; adding a note is optional. Use History to add forgotten time, correct a session or remove it.
+Choose a suggested subject or type your own, choose a study type, and press Start. An optional intention is saved as the session note. New names are created inline. Finish saves with one click; adding a note is optional. Use History to add forgotten time, search notes, filter dates, sort, correct a session or remove it. Repeat and Continue prepare the same subject/type without starting time unexpectedly.
 
 Switch modes above the timer. Stopwatch counts up; Countdown stops at your chosen duration. Pomodoro saves each completed focus session and starts a short break, with a long break after every fourth completed focus session. Breaks never count toward study totals. Start each next focus session yourself. Focus, break and countdown lengths are editable from 1–240 minutes.
 
@@ -39,17 +40,19 @@ The small window icon opens the always-pinned mini timer. Both windows control t
 
 Running time includes computer sleep and time while Margin is closed. Paused time does not count. Pomodoro and Countdown stop at their exact active-time target, including after sleep or restart; they cannot silently create further focus sessions. If you forget to stop a session, finish it and edit its start or study minutes in History. Changing a session’s time replaces its pause intervals with a continuous manual entry; note-only edits preserve all intervals.
 
-Space pauses or resumes when you are not typing or using a control. Command/Ctrl K focuses the subject, Command/Ctrl M opens the mini timer, Command/Ctrl 1 returns to Today, and Escape leaves fullscreen.
+Space pauses or resumes when you are not typing or using a control. Command/Ctrl K focuses the subject, Command/Ctrl M opens the mini timer, Command/Ctrl 1 returns to Today, Command/Ctrl 2 opens History, Command/Ctrl 3 opens Statistics, and Escape leaves fullscreen.
 
-## Insights
+## Statistics
 
-Choose Week, Month, Year or All time. Step through earlier periods to explore your record. Switch Time distribution between Subjects and Study types. Hover chart bars for durations; select a calendar day for its subject breakdown. Wrapped becomes available after at least three sessions across three days in the selected month or year.
+Choose Week, Month, Year, All time or a custom range. Filter by subject and study type. Overview shows the main totals and labeled trends; selecting a bar opens matching history. Study mix shows recorded time for each subject/type combination. Calendar offers full month cells with day totals and a year overview; select a day for a breakdown and its sessions. Hourly activity and session methods are under Study patterns. Manual entries are kept separate from timer modes. Wrapped becomes available after at least three sessions across three days in the selected month or year.
 
-Insights use finished sessions. Today also includes the current timer. Active intervals are split at day and hour boundaries, so a session across midnight or a pause contributes only its actual time to each bucket. Calendar views use the computer’s current time zone; changing zones can move history between days without changing elapsed totals. Original recording zones are preserved.
+Statistics use finished sessions. Today also includes the current timer. Active intervals are split at day and hour boundaries, so a session across midnight or a pause contributes only its actual time to each bucket. Calendar views use the computer’s current time zone; changing zones can move history between days without changing elapsed totals. Original recording zones are preserved.
 
 <p align="center"><img src="docs/screenshots/insights.png" alt="Study-type distribution and historical insights in the native app" width="880"></p>
 
 Screenshots show the actual macOS application using an isolated UI-verification database. Test sessions are not included in an installed app or the source repository.
+
+The optional daily target is set from Today. Progress uses actual recorded study time; edit it or disable it from the same control. The shared date picker supports presets, reversed range selection, direct date entry and keyboard arrows, Home/End and Page Up/Down.
 
 ## Your data
 
@@ -85,6 +88,8 @@ npm run desktop:build
 ```
 
 Native bundles are written to `src-tauri/target/release/bundle/`. Build on Windows for Windows installers and on macOS for macOS bundles. GitHub Actions checks both platforms and prepares draft release assets when a `v*` tag is pushed. Signing credentials are not configured. See [release notes](docs/releases.md) for publication commands and platform limits.
+
+See [the improvement list and competitor research](docs/improvement-plan.md) and [the interface review](docs/ui-review.md) for this pass.
 
 ## Source
 

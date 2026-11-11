@@ -177,6 +177,10 @@ export function Settings({
                 <kbd>⌘ / Ctrl M</kbd>
                 <span>Open Today</span>
                 <kbd>⌘ / Ctrl 1</kbd>
+                <span>Open History</span>
+                <kbd>⌘ / Ctrl 2</kbd>
+                <span>Open Statistics</span>
+                <kbd>⌘ / Ctrl 3</kbd>
                 <span>Exit fullscreen</span>
                 <kbd>Esc</kbd>
               </div>
@@ -242,7 +246,7 @@ export function Settings({
         ) : (
           <div className="settings-content about">
             <h3>
-              Margin <small>0.2.0</small>
+              Margin <small>0.3.0</small>
             </h3>
             <p>Local study tracking.</p>
             <dl>

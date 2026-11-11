@@ -20,6 +20,7 @@ fn subject(db: &mut Database) -> String {
 fn start(db: &mut Database, sid: &str, at: i64) -> String {
     db.mutate(
         Command::Start {
+            note: String::new(),
             timer_mode: "stopwatch".into(),
             target_ms: None,
             study_type_id: "studying".into(),
@@ -41,6 +42,7 @@ fn timer_pause_resume_finish_and_duplicate_guard() {
     assert!(db
         .mutate(
             Command::Start {
+                note: String::new(),
                 timer_mode: "stopwatch".into(),
                 target_ms: None,
                 study_type_id: "studying".into(),
@@ -215,6 +217,7 @@ fn study_types_persist_rename_archive_and_export() {
     let session = db
         .mutate(
             Command::Start {
+                note: String::new(),
                 timer_mode: "stopwatch".into(),
                 target_ms: None,
                 subject_id: sid,
@@ -399,6 +402,7 @@ fn atomic_backup_writes_replace_complete_contents() {
 fn timed(db: &mut Database, sid: &str, mode: &str, at: i64) -> String {
     db.mutate(
         Command::Start {
+            note: String::new(),
             subject_id: sid.into(),
             study_type_id: "reviewing".into(),
             time_zone: "UTC".into(),
@@ -576,6 +580,7 @@ fn timer_settings_and_targets_are_validated() {
     assert!(db
         .mutate(
             Command::Start {
+                note: String::new(),
                 subject_id: sid,
                 study_type_id: "studying".into(),
                 time_zone: "UTC".into(),
@@ -615,4 +620,102 @@ fn migration_v2_preserves_an_active_stopwatch_and_pins_legacy_settings() {
     assert!(s.sessions[0].target_ms.is_none());
     assert!(s.settings.always_on_top);
     assert_eq!(s.settings.focus_minutes, 25);
+}
+
+#[test]
+fn daily_target_is_optional_validated_and_backup_compatible() {
+    let mut db = database();
+    assert_eq!(db.snapshot().unwrap().settings.daily_goal_minutes, 0);
+    db.mutate(
+        Command::Setting {
+            key: "dailyGoalMinutes".into(),
+            value: "90".into(),
+        },
+        1000,
+    )
+    .unwrap();
+    assert_eq!(db.snapshot().unwrap().settings.daily_goal_minutes, 90);
+    assert!(db
+        .mutate(
+            Command::Setting {
+                key: "dailyGoalMinutes".into(),
+                value: "1441".into()
+            },
+            2000
+        )
+        .is_err());
+    assert!(db
+        .mutate(
+            Command::Setting {
+                key: "dailyGoalMinutes".into(),
+                value: "-1".into()
+            },
+            2000
+        )
+        .is_err());
+    let backup = db.backup().unwrap();
+    let mut other = database();
+    other.restore(backup, 3000).unwrap();
+    assert_eq!(other.snapshot().unwrap().settings.daily_goal_minutes, 90);
+    let mut old = serde_json::to_value(db.backup().unwrap()).unwrap();
+    old["version"] = serde_json::json!(3);
+    old["settings"]
+        .as_object_mut()
+        .unwrap()
+        .remove("dailyGoalMinutes");
+    let legacy: Backup = serde_json::from_value(old).unwrap();
+    other.restore(legacy, 4000).unwrap();
+    assert_eq!(other.snapshot().unwrap().settings.daily_goal_minutes, 0);
+}
+#[test]
+fn intentions_are_validated_and_survive_finish_and_backup() {
+    let mut db = database();
+    let sid = subject(&mut db);
+    let command = |note: String| Command::Start {
+        note,
+        subject_id: sid.clone(),
+        study_type_id: "practice".into(),
+        time_zone: "UTC".into(),
+        timer_mode: "stopwatch".into(),
+        target_ms: None,
+    };
+    assert!(db.mutate(command("x".repeat(2001)), 1000).is_err());
+    assert!(db.snapshot().unwrap().sessions.is_empty());
+    let s = db
+        .mutate(
+            command("Integrals: substitution\nQuestions 1–5".into()),
+            2000,
+        )
+        .unwrap()
+        .sessions
+        .remove(0);
+    db.mutate(Command::Finish { id: s.id }, 6000).unwrap();
+    let backup = db.backup().unwrap();
+    let mut other = database();
+    other.restore(backup, 7000).unwrap();
+    assert_eq!(
+        other.snapshot().unwrap().sessions[0].note,
+        "Integrals: substitution\nQuestions 1–5"
+    );
+}
+#[test]
+fn migration_v3_adds_disabled_target_without_changing_records() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("v3.db");
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(include_str!("../migrations/001_initial.sql"))
+            .unwrap();
+        conn.execute_batch(include_str!("../migrations/002_study_types.sql"))
+            .unwrap();
+        conn.execute_batch(include_str!("../migrations/003_timer_modes.sql"))
+            .unwrap();
+        conn.execute_batch("INSERT INTO subjects VALUES('math','Math','#66816C',0);INSERT INTO sessions VALUES('s','math',1000,2000,'kept','timer','UTC',2000,'practice','countdown',60000);INSERT INTO segments VALUES('s',1000,2000);").unwrap();
+    }
+    let db = Database::open(&path).unwrap();
+    let snap = db.snapshot().unwrap();
+    assert_eq!(snap.settings.daily_goal_minutes, 0);
+    assert_eq!(snap.sessions[0].note, "kept");
+    assert_eq!(snap.sessions[0].segments[0].end, Some(2000));
+    assert_eq!(snap.sessions[0].timer_mode, "countdown");
 }

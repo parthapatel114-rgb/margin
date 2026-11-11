@@ -49,3 +49,11 @@ Migration 3 adds timer mode and optional target duration to sessions, timer pref
 A native 250 ms reconciliation loop checks the one active timed session, independently of either webview’s render cadence. It closes the last interval at its exact remaining-active-time deadline. A late tick or restart uses that deadline rather than the wake time. A Pomodoro break starts at that timestamp; an already elapsed break completes without starting another session. Breaks live outside the sessions table and cannot enter analytics. Paused sessions and breaks remain paused across restart. Commands also reconcile before acting so Finish/Pause races at a deadline return the completed snapshot. Snapshot revision checks prevent an older response overwriting newer state.
 
 The live analytics view caps a timed session at its target even between native completion ticks. Manual changes to timing replace the interval model and clear its timer mode/target; note-only edits preserve them.
+
+## Schema 4 and the study workspace
+
+Migration 4 adds the optional `dailyGoalMinutes` preference with a disabled default of zero. JSON backups are version 4 and still accept versions 1–3. Goal values are validated from 0–1440; the UI uses a separate disable action. The existing note field stores an optional session intention supplied at Start, so no separate task entity or mandatory metadata is introduced.
+
+The shared MonthCalendar supports arrow, Home/End and Page Up/Down navigation with focus transfer across months. DateRangePicker normalizes reversed selections and validates direct entries before Apply. History selects sessions whose active intervals intersect the local date range, so an overnight session can be found on either active date. Its summary reports time within the range; individual rows retain complete session duration. Statistics use the same local-day bounds and pass subject/type/date filters to History when a chart bar, day or study-mix cell is selected.
+
+Study mix computes the intersections of saved intervals by subject, study type and session method. Manual entries are their own method. Median session length uses the durations that contribute to the selected period. Existing stopwatch/Pomodoro/countdown reconciliation and break accounting remain native and unchanged.

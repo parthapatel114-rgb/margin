@@ -42,3 +42,9 @@ Implement the eight phases in the supplied Project Brief.md. Optional tray and r
 Applied the installed [jakubkrehel interface skills](https://github.com/jakubkrehel/skills): better-interface, better-ui, better-typography, better-colors, better-accessibility, better-layout and better-writing. All existing screens share the revised tokens and control styles. Settings separates appearance, timer defaults, data and app details; infrequent detail stays behind native disclosure controls. The mini timer is always pinned and has no pin toggle, per the user’s request.
 
 Timer modes are a first-class choice beside the subject/type workflow. Pomodoro offers explicit focus and break durations, a four-focus cycle and automatic break transition. Starting the next focus remains explicit to prevent unrecorded absence becoming study time. Countdown is a single bounded session. See [UI review](ui-review.md) for evidence and unverified boundaries.
+
+## Compact workspace revision, 0.3
+
+The user's second visual pass identified remaining empty space and a difficult first-use/statistics experience. The timer now places its session fields and clock side by side, with compact totals above, repeat preparation and history below. Navigation uses a narrow rail, collapsing to named icon controls at narrow widths. There is no new runtime UI dependency.
+
+Statistics is divided into Overview, Calendar and Study mix. Three primary metrics replace the long introductory stack. Hourly patterns are secondary. The History date filter and activity calendar share a themed month grid instead of mixing app colors with an operating-system date popup. Repeated calendar mode controls and duplicate table captions are removed from the visible interface. The [concrete improvement list](improvement-plan.md) records the official competitor sources and product boundary.

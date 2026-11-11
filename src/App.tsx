@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Check, Settings2, X } from "lucide-react";
+import {
+  Check,
+  Settings2,
+  X,
+  Timer as TimerIcon,
+  History as HistoryIcon,
+  ChartNoAxesCombined,
+} from "lucide-react";
 import { Timer } from "./components/Timer";
 import { Today } from "./components/Today";
 import { History } from "./components/History";
@@ -11,7 +18,7 @@ import { Subjects } from "./components/Subjects";
 import { SessionEditor } from "./components/SessionEditor";
 import { Dialog } from "./components/Dialog";
 import { useClock, useStudyStore } from "./lib/store";
-import type { Session } from "./lib/types";
+import type { Session, SessionDraft, HistoryFilter } from "./lib/types";
 function Mark() {
   return (
     <svg viewBox="0 0 64 64" fill="currentColor" aria-hidden="true">
@@ -30,6 +37,8 @@ export function App() {
   const [focus, setFocus] = useState(false);
   const [settings, setSettings] = useState(false);
   const [manage, setManage] = useState<"subject" | "study_type" | null>(null);
+  const [draft, setDraft] = useState<SessionDraft>();
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>({});
   const [editor, setEditor] = useState<Session | "new" | null>(null);
   const active = data?.sessions.find((s) => s.endedAt === null);
   const breakState = data?.timerState.break;
@@ -66,7 +75,8 @@ export function App() {
     return () => cancelAnimationFrame(frame);
   }, [theme, font]);
   useEffect(() => {
-    document.title = `Margin · ${page[0].toUpperCase() + page.slice(1)}`;
+    window.scrollTo({ top: 0, behavior: "instant" });
+    document.title = `Margin · ${page === "insights" ? "Statistics" : page[0].toUpperCase() + page.slice(1)}`;
     if (!mini && !focus)
       requestAnimationFrame(() =>
         document
@@ -103,6 +113,11 @@ export function App() {
         if (e.key.toLowerCase() === "m") {
           e.preventDefault();
           void doNative("open_mini");
+          return;
+        }
+        if ((e.key === "2" || e.key === "3") && !mini) {
+          e.preventDefault();
+          setPage(e.key === "2" ? "history" : "insights");
           return;
         }
         if (e.key === "1") {
@@ -149,6 +164,36 @@ export function App() {
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   }, [active, breakState, doNative, focus, mini, mutate, toggleFocus]);
+  function openHistory(filter: HistoryFilter = {}) {
+    setHistoryFilter(filter);
+    setPage("history");
+  }
+  function repeatSession(s: Session) {
+    if (active || breakState) {
+      setError(
+        "Finish the current session or skip the break before preparing another.",
+      );
+      return;
+    }
+    const subject = data?.subjects.find(
+        (x) => x.id === s.subjectId && !x.archived,
+      ),
+      type = data?.studyTypes.find(
+        (x) => x.id === s.studyTypeId && !x.archived,
+      );
+    if (!subject || !type) {
+      setError(
+        "Restore this subject and study type before repeating the session.",
+      );
+      return;
+    }
+    setDraft((p) => ({
+      subject: subject.name,
+      studyType: type.name,
+      version: (p?.version ?? 0) + 1,
+    }));
+    setPage("today");
+  }
   function addSession() {
     if (!data?.subjects.some((s) => !s.archived)) {
       setManage("subject");
@@ -188,6 +233,8 @@ export function App() {
           : "Session saved";
   const timer = (
     <Timer
+      key={draft?.version ?? 0}
+      draft={draft}
       data={data}
       active={active}
       now={now}
@@ -233,23 +280,43 @@ export function App() {
                 {(["today", "history", "insights"] as const).map(
                   (destination) => (
                     <button
+                      aria-label={
+                        destination === "insights"
+                          ? "Statistics"
+                          : destination[0].toUpperCase() + destination.slice(1)
+                      }
+                      title={`${destination === "insights" ? "Statistics" : destination[0].toUpperCase() + destination.slice(1)} · ⌘/Ctrl ${destination === "today" ? 1 : destination === "history" ? 2 : 3}`}
                       aria-current={page === destination ? "page" : undefined}
                       key={destination}
                       onClick={() => setPage(destination)}
                     >
-                      {destination[0].toUpperCase() + destination.slice(1)}
+                      {destination === "today" ? (
+                        <TimerIcon size={18} />
+                      ) : destination === "history" ? (
+                        <HistoryIcon size={18} />
+                      ) : (
+                        <ChartNoAxesCombined size={18} />
+                      )}
+                      <span>
+                        {destination === "insights"
+                          ? "Statistics"
+                          : destination[0].toUpperCase() + destination.slice(1)}
+                      </span>
                     </button>
                   ),
                 )}
               </nav>
-              <button
-                className="icon settings-trigger"
-                aria-label="Open settings"
-                title="Settings"
-                onClick={() => setSettings(true)}
-              >
-                <Settings2 size={18} />
-              </button>
+              <div className="rail-bottom">
+                <button
+                  className="settings-trigger"
+                  aria-label="Open settings"
+                  title="Settings"
+                  onClick={() => setSettings(true)}
+                >
+                  <Settings2 size={18} />
+                  <span>Settings</span>
+                </button>
+              </div>
             </div>
           </header>
         </>
@@ -288,11 +355,18 @@ export function App() {
             now={now}
             timer={timer}
             onAdd={addSession}
-            onHistory={() => setPage("history")}
+            onHistory={() => openHistory()}
+            onRepeat={repeatSession}
+            mutate={mutate}
+            busy={busy}
             onEdit={setEditor}
           />
         ) : page === "history" ? (
           <History
+            key={JSON.stringify(historyFilter)}
+            initialFilter={historyFilter}
+            now={now}
+            onRepeat={repeatSession}
             sessions={data.sessions}
             subjects={data.subjects}
             studyTypes={data.studyTypes}
@@ -308,6 +382,8 @@ export function App() {
             studyTypes={data.studyTypes}
             now={now}
             onStart={() => setPage("today")}
+            onAdd={addSession}
+            onHistory={openHistory}
           />
         )}
       </main>
