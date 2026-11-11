@@ -10,13 +10,13 @@ Windows x64 NSIS/MSI and Intel macOS release jobs are configured. They have not 
 
 ## GitHub status
 
-GitHub CLI was checked during delivery and had no authenticated hosts. No remote repository or release was created. All source, documentation, icons, migrations, tests and workflow files are preserved locally.
+The first deliveries were local. The 0.3.0 upload is prepared as a private repository, with source in Git and verified installer/source archives attached as release assets. Local databases, exports, build output, tools and signing credentials are excluded by .gitignore. All source, documentation, icons, migrations, tests and workflow files are preserved locally.
 
 From the source repository, after authenticating with GitHub CLI:
 
 ```sh
 gh auth login
-gh repo create margin-study --public --source=. --remote=origin --push
+gh repo create margin-study --private --source=. --remote=origin --push
 ```
 
 Inspect the first Check and package workflow. Once it passes, create a version tag to prepare draft installers:
