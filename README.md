@@ -6,7 +6,7 @@ Margin is a small desktop app for keeping track of study time and seeing where t
 
 Choose a subject and a study type, then start. Reviewing calculus and practicing calculus belong to the same subject, but tell different stories about how you spend your time. You can use the built-in study types or add your own.
 
-<p align="center"><img src="docs/screenshots/today.png" alt="Margin’s native desktop timer" width="880"></p>
+<p align="center"><img src="docs/screenshots/today.png" alt="Margin’s fullscreen Today workspace" width="880"></p>
 
 ## What it does
 
@@ -48,7 +48,7 @@ Choose Week, Month, Year, All time or a custom range. Filter by subject and stud
 
 Statistics use finished sessions. Today also includes the current timer. Active intervals are split at day and hour boundaries, so a session across midnight or a pause contributes only its actual time to each bucket. Calendar views use the computer’s current time zone; changing zones can move history between days without changing elapsed totals. Original recording zones are preserved.
 
-<p align="center"><img src="docs/screenshots/insights.png" alt="Study-type distribution and historical insights in the native app" width="880"></p>
+<p align="center"><img src="docs/screenshots/insights.png" alt="Margin’s fullscreen statistics overview" width="880"></p>
 
 Screenshots show the actual macOS application using an isolated UI-verification database. Test sessions are not included in an installed app or the source repository.
 
