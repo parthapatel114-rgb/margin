@@ -1,0 +1,13 @@
+node_modules/
+dist/
+work/
+releases/
+src-tauri/target/
+src-tauri/gen/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite*
+.DS_Store
+.env*
+*.log

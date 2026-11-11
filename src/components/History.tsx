@@ -1,0 +1,252 @@
+import { useMemo, useState } from "react";
+import { ArrowUpRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { dayKey, duration, elapsed } from "../lib/analytics";
+import type { Mutate, Session, Subject } from "../lib/types";
+import { Confirm } from "./Dialog";
+export function SessionRows({
+  sessions,
+  subjects,
+  studyTypes,
+  onEdit,
+  onDelete,
+}: {
+  sessions: Session[];
+  subjects: Subject[];
+  studyTypes: Subject[];
+  onEdit: (s: Session) => void;
+  onDelete?: (s: Session) => void;
+}) {
+  return (
+    <div className="session-list">
+      {sessions.map((s) => {
+        const subject = subjects.find((x) => x.id === s.subjectId);
+        return (
+          <div className="session-row" key={s.id}>
+            <i
+              className="session-line"
+              style={{ background: subject?.color ?? "var(--accent)" }}
+            />
+            <div className="session-details">
+              <strong>{subject?.name ?? "Removed subject"}</strong>
+              <span>
+                {new Date(s.startedAt).toLocaleTimeString([], {
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}{" "}
+                —{" "}
+                {new Date(s.endedAt!).toLocaleTimeString([], {
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+                {" · " +
+                  (studyTypes.find((t) => t.id === s.studyTypeId)?.name ??
+                    "Studying") +
+                  (s.source === "manual" ? " · Manual entry" : "")}
+                {s.timeZone !== Intl.DateTimeFormat().resolvedOptions().timeZone
+                  ? ` · Recorded in ${s.timeZone}`
+                  : ""}
+              </span>
+              {s.note && <p>{s.note}</p>}
+            </div>
+            <span className="session-duration">{duration(elapsed(s))}</span>
+            <button
+              className="icon"
+              aria-label={`Edit ${subject?.name ?? ""} session`}
+              onClick={() => onEdit(s)}
+            >
+              <Pencil size={14} />
+            </button>
+            {onDelete && (
+              <button
+                className="icon"
+                aria-label={`Delete ${subject?.name ?? ""} session`}
+                onClick={() => onDelete(s)}
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+export function History({
+  sessions,
+  subjects,
+  studyTypes,
+  mutate,
+  busy,
+  onEdit,
+  onAdd,
+}: {
+  sessions: Session[];
+  subjects: Subject[];
+  studyTypes: Subject[];
+  mutate: Mutate;
+  busy: boolean;
+  onEdit: (s: Session) => void;
+  onAdd: () => void;
+}) {
+  const [subject, setSubject] = useState("");
+  const [studyType, setStudyType] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [removing, setRemoving] = useState<Session | null>(null);
+  const [limit, setLimit] = useState(100);
+  const filtered = useMemo(
+    () =>
+      sessions.filter(
+        (s) =>
+          s.endedAt !== null &&
+          (!subject || s.subjectId === subject) &&
+          (!studyType || s.studyTypeId === studyType) &&
+          (!from || dayKey(s.startedAt) >= from) &&
+          (!to || dayKey(s.startedAt) <= to),
+      ),
+    [sessions, subject, studyType, from, to],
+  );
+  const groups = useMemo(() => {
+    const map = new Map<string, Session[]>();
+    for (const s of filtered.slice(0, limit)) {
+      const key = dayKey(s.startedAt);
+      map.set(key, [...(map.get(key) ?? []), s]);
+    }
+    return [...map];
+  }, [filtered, limit]);
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">YOUR STUDY JOURNAL</span>
+          <h1>Time, remembered.</h1>
+          <p>Every session has a place here.</p>
+        </div>
+        <button className="secondary" onClick={onAdd}>
+          <Plus size={16} />
+          Add study time
+        </button>
+      </div>
+      <div className="filters">
+        <label>
+          <span>Subject</span>
+          <select
+            value={subject}
+            onChange={(e) => {
+              setSubject(e.target.value);
+              setLimit(100);
+            }}
+          >
+            <option value="">All subjects</option>
+            {subjects.map((s) => (
+              <option value={s.id} key={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Study type</span>
+          <select
+            value={studyType}
+            onChange={(e) => setStudyType(e.target.value)}
+          >
+            <option value="">All types</option>
+            {studyTypes.map((t) => (
+              <option value={t.id} key={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>From</span>
+          <input
+            aria-label="From date"
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+        </label>
+        <label>
+          <span>To</span>
+          <input
+            aria-label="To date"
+            type="date"
+            value={to}
+            min={from}
+            onChange={(e) => setTo(e.target.value)}
+          />
+        </label>
+        <span className="filter-summary">
+          {filtered.length} sessions ·{" "}
+          {duration(filtered.reduce((n, s) => n + elapsed(s), 0))}
+        </span>
+      </div>
+      {groups.length ? (
+        groups.map(([date, items]) => (
+          <section key={date} className="history-day">
+            <div className="section-heading">
+              <h2>
+                {new Date(`${date}T12:00`).toLocaleDateString([], {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </h2>
+              <span>{duration(items.reduce((n, s) => n + elapsed(s), 0))}</span>
+            </div>
+            <SessionRows
+              sessions={items}
+              subjects={subjects}
+              studyTypes={studyTypes}
+              onEdit={onEdit}
+              onDelete={setRemoving}
+            />
+          </section>
+        ))
+      ) : (
+        <div className="empty">
+          <span className="empty-mark">—</span>
+          <h2>
+            {sessions.length
+              ? "No sessions in this view."
+              : "A history worth keeping."}
+          </h2>
+          <p>
+            {sessions.length
+              ? "Try another subject or date range."
+              : "Your finished sessions will appear here. You can also add study time you forgot to record."}
+          </p>
+          <button className="text-button" onClick={onAdd}>
+            Add your first session <ArrowUpRight size={15} />
+          </button>
+        </div>
+      )}
+      {filtered.length > limit && (
+        <button
+          className="secondary load-more"
+          onClick={() => setLimit((n) => n + 100)}
+        >
+          Show more sessions
+        </button>
+      )}
+      {removing && (
+        <Confirm
+          title="Delete this session?"
+          busy={busy}
+          onClose={() => setRemoving(null)}
+          onConfirm={async () => {
+            if (await mutate({ kind: "delete_session", id: removing.id }))
+              setRemoving(null);
+          }}
+        >
+          This permanently removes {duration(elapsed(removing))} from your
+          history and statistics. Export a backup first if you want to keep a
+          copy.
+        </Confirm>
+      )}
+    </>
+  );
+}
