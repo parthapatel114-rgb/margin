@@ -23,45 +23,58 @@ fn publish(app: &tauri::AppHandle, snapshot: &Snapshot) {
     let _ = app.emit("margin:changed", snapshot.revision);
 }
 #[tauri::command]
-fn snapshot(state: tauri::State<Store>) -> Result<Snapshot> {
-    state.0.lock().map_err(error)?.snapshot()
+fn snapshot(app: tauri::AppHandle, state: tauri::State<Store>) -> Result<Snapshot> {
+    let mut db = state.0.lock().map_err(error)?;
+    if db.reconcile(now())? {
+        let s = db.snapshot()?;
+        publish(&app, &s);
+        return Ok(s);
+    }
+    db.snapshot()
 }
 #[tauri::command]
 fn mutate(app: tauri::AppHandle, state: tauri::State<Store>, command: Command) -> Result<Snapshot> {
     let mut db = state.0.lock().map_err(error)?;
-    let snapshot = db.mutate(command, now())?;
+    let at = now();
+    if db.reconcile(at)? {
+        let current = db.snapshot()?;
+        publish(&app, &current);
+        if let Command::Finish { id } | Command::Pause { id } | Command::Resume { id } = &command {
+            if current
+                .sessions
+                .iter()
+                .any(|s| &s.id == id && s.ended_at.is_some())
+            {
+                return Ok(current);
+            }
+        }
+    }
+    let snapshot = db.mutate(command, at)?;
     publish(&app, &snapshot);
     if let Some(mini) = app.get_webview_window("mini") {
-        mini.set_always_on_top(snapshot.settings.always_on_top)
-            .map_err(error)?;
+        mini.set_always_on_top(true).map_err(error)?;
     }
     Ok(snapshot)
 }
 #[tauri::command]
-fn open_mini(app: tauri::AppHandle, state: tauri::State<Store>) -> Result<()> {
+fn open_mini(app: tauri::AppHandle) -> Result<()> {
     if let Some(window) = app.get_webview_window("mini") {
+        window.set_always_on_top(true).map_err(error)?;
         window.show().map_err(error)?;
         window.set_focus().map_err(error)?;
         return Ok(());
     }
-    let top = state
-        .0
-        .lock()
-        .map_err(error)?
-        .snapshot()?
-        .settings
-        .always_on_top;
     tauri::WebviewWindowBuilder::new(
         &app,
         "mini",
         tauri::WebviewUrl::App("index.html?window=mini".into()),
     )
     .title("Margin · Mini timer")
-    .inner_size(348.0, 164.0)
-    .min_inner_size(320.0, 164.0)
+    .inner_size(360.0, 172.0)
+    .min_inner_size(320.0, 172.0)
     .resizable(false)
     .decorations(false)
-    .always_on_top(top)
+    .always_on_top(true)
     .build()
     .map_err(error)?;
     Ok(())
@@ -234,7 +247,7 @@ fn csv(b: &Backup) -> String {
         };
         format!("\"{}\"", safe.replace('"', "\"\""))
     }
-    let mut out=String::from("subject,study_type,started_at_utc,ended_at_utc,duration_seconds,paused_seconds,note,recording_time_zone,source\r\n");
+    let mut out=String::from("subject,study_type,timer_mode,started_at_utc,ended_at_utc,duration_seconds,paused_seconds,note,recording_time_zone,source\r\n");
     for s in &b.sessions {
         let Some(end) = s.ended_at else { continue };
         let elapsed: i64 = s
@@ -260,9 +273,10 @@ fn csv(b: &Backup) -> String {
                 .unwrap_or_default()
         };
         out.push_str(&format!(
-            "{},{},{},{},{},{},{},{},{}\r\n",
+            "{},{},{},{},{},{},{},{},{},{}\r\n",
             cell(name),
             cell(study_type),
+            cell(&s.timer_mode),
             cell(&date(s.started_at)),
             cell(&date(end)),
             elapsed as f64 / 1000.0,
@@ -304,6 +318,27 @@ pub fn run() {
             let database =
                 Database::open(&path.join("margin.sqlite3")).map_err(std::io::Error::other)?;
             app.manage(Store(Mutex::new(database)));
+            let handle = app.handle().clone();
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_millis(250));
+                let store = handle.state::<Store>();
+                if let Ok(mut db) = store.0.lock() {
+                    match db.reconcile(now()) {
+                        Ok(true) => {
+                            if let Ok(s) = db.snapshot() {
+                                publish(&handle, &s);
+                                if let Some(window) = handle.get_webview_window("main") {
+                                    let _ = window.request_user_attention(Some(
+                                        tauri::UserAttentionType::Informational,
+                                    ));
+                                }
+                            }
+                        }
+                        Ok(false) => {}
+                        Err(error) => eprintln!("Timer reconciliation failed: {error}"),
+                    }
+                };
+            });
             Ok(())
         })
         .on_window_event(|window, event| {

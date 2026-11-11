@@ -151,7 +151,7 @@ export function SessionEditor({
           </label>
         </div>
         <p className="hint">
-          Times use {timeZone()}.{" "}
+          {timeZone()}.{" "}
           {session
             ? "Changing the time replaces pause intervals with one continuous manual entry."
             : "The session must end in the past and must not overlap another session."}
@@ -162,7 +162,7 @@ export function SessionEditor({
             maxLength={2000}
             rows={3}
             value={note}
-            placeholder="What did you work on?"
+            placeholder="e.g. Recursion practice"
             onChange={(e) => setNote(e.target.value)}
           />
         </label>

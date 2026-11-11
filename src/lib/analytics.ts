@@ -21,10 +21,11 @@ export function weekStart(at: number) {
   return +d;
 }
 export function elapsed(session: Session, now = Date.now()) {
-  return session.segments.reduce(
+  const total = session.segments.reduce(
     (sum, part) => sum + Math.max(0, (part.end ?? now) - part.start),
     0,
   );
+  return session.targetMs === null ? total : Math.min(total, session.targetMs);
 }
 export function clock(ms: number) {
   const sec = Math.floor(Math.max(ms, 0) / 1000);
@@ -92,9 +93,12 @@ export function analyze(
     longest = 0;
   for (const session of sessions) {
     let sessionTotal = 0;
+    let budget = session.targetMs ?? Infinity;
     for (const part of session.segments) {
+      const effectiveEnd = Math.min(part.end ?? now, now, part.start + budget);
+      budget -= Math.max(0, effectiveEnd - part.start);
       let cursor = Math.max(part.start, from);
-      const end = Math.min(part.end ?? now, to, now);
+      const end = Math.min(effectiveEnd, to);
       while (cursor < end) {
         const d = new Date(cursor);
         // Advance by elapsed time to the next wall-hour boundary. Repeated DST hours

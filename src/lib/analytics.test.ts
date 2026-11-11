@@ -20,6 +20,8 @@ const session = (
   startedAt: +new Date(start),
   endedAt: +new Date(end),
   source: "timer",
+  timerMode: "stopwatch",
+  targetMs: null,
   timeZone: "America/New_York",
   note: "",
   updatedAt: +new Date(end),
@@ -139,4 +141,25 @@ describe("study types and zone edges", () => {
     expect(a.hours[1]).toBe(HOUR * 1.5);
     expect(a.hours[2]).toBe(HOUR / 2);
   });
+});
+
+it("caps live timed analytics at the target even before native completion arrives", () => {
+  const s = {
+    ...session("2026-11-10T23:59:00", "2026-11-11T00:10:00"),
+    endedAt: null,
+    timerMode: "countdown" as const,
+    targetMs: 120_000,
+    segments: [
+      {
+        start: +new Date("2026-11-10T23:59:00"),
+        end: +new Date("2026-11-10T23:59:30"),
+      },
+      { start: +new Date("2026-11-11T00:01:00"), end: null },
+    ],
+  };
+  const now = +new Date("2026-11-11T00:10:00");
+  expect(elapsed(s, now)).toBe(120_000);
+  const data = analyze([s], +new Date("2026-11-11T00:00:00"), now, now);
+  expect(data.total).toBe(90_000);
+  expect(data.days["2026-11-11"].total).toBe(90_000);
 });

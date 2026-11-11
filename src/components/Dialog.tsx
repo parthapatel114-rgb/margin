@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useId, type ReactNode } from "react";
 import { X } from "lucide-react";
 export function Dialog({
   title,
@@ -11,11 +11,16 @@ export function Dialog({
   children: ReactNode;
   wide?: boolean;
 }) {
+  const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
     const dialog = ref.current;
     dialog?.showModal();
-    return () => dialog?.close();
+    return () => {
+      dialog?.close();
+      if (previous?.isConnected) previous.focus({ preventScroll: true });
+    };
   }, []);
   return (
     <dialog
@@ -37,10 +42,10 @@ export function Dialog({
             onClose();
         }
       }}
-      aria-labelledby="dialog-title"
+      aria-labelledby={titleId}
     >
       <header>
-        <h2 id="dialog-title">{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <button className="icon" aria-label="Close dialog" onClick={onClose}>
           <X size={18} />
         </button>
@@ -69,7 +74,7 @@ export function Confirm({
       <p className="dialog-copy">{children}</p>
       <footer>
         <button className="secondary" disabled={busy} onClick={onClose}>
-          Keep it
+          Cancel
         </button>
         <button className="danger" disabled={busy} onClick={onConfirm}>
           {label}

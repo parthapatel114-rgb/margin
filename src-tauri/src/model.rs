@@ -1,5 +1,46 @@
 use serde::{Deserialize, Serialize};
 
+pub fn default_mode() -> String {
+    "stopwatch".into()
+}
+pub fn default_focus() -> u32 {
+    25
+}
+pub fn default_short_break() -> u32 {
+    5
+}
+pub fn default_long_break() -> u32 {
+    15
+}
+pub fn default_countdown() -> u32 {
+    45
+}
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TimerState {
+    pub cycle: u32,
+    #[serde(rename = "break")]
+    pub break_state: Option<BreakState>,
+    pub notice: Option<TimerNotice>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BreakState {
+    pub session_id: String,
+    pub subject_id: String,
+    pub study_type_id: String,
+    pub remaining_ms: i64,
+    pub running_since: Option<i64>,
+    pub total_ms: i64,
+    pub long: bool,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TimerNotice {
+    pub id: String,
+    pub kind: String,
+    pub session_id: String,
+}
 pub fn default_type() -> String {
     "studying".into()
 }
@@ -47,6 +88,10 @@ pub struct Session {
     pub time_zone: String,
     pub updated_at: i64,
     pub segments: Vec<Segment>,
+    #[serde(default = "default_mode")]
+    pub timer_mode: String,
+    #[serde(default)]
+    pub target_ms: Option<i64>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -56,7 +101,18 @@ pub struct Settings {
     pub last_subject: String,
     #[serde(default = "default_type")]
     pub last_study_type: String,
+    #[serde(default)]
     pub always_on_top: bool,
+    #[serde(default = "default_mode")]
+    pub timer_mode: String,
+    #[serde(default = "default_focus")]
+    pub focus_minutes: u32,
+    #[serde(default = "default_short_break")]
+    pub short_break_minutes: u32,
+    #[serde(default = "default_long_break")]
+    pub long_break_minutes: u32,
+    #[serde(default = "default_countdown")]
+    pub countdown_minutes: u32,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -64,6 +120,8 @@ pub struct Backup {
     pub format: String,
     pub version: u32,
     pub exported_at: i64,
+    #[serde(default)]
+    pub timer_state: TimerState,
     pub subjects: Vec<Subject>,
     #[serde(default = "default_types")]
     pub study_types: Vec<Subject>,
@@ -78,6 +136,7 @@ pub struct Snapshot {
     pub sessions: Vec<Session>,
     pub settings: Settings,
     pub recovered_id: Option<String>,
+    pub timer_state: TimerState,
     pub revision: u64,
 }
 #[derive(Debug, Deserialize)]
@@ -113,6 +172,17 @@ pub enum Command {
         subject_id: String,
         study_type_id: String,
         time_zone: String,
+        #[serde(default = "default_mode")]
+        timer_mode: String,
+        #[serde(default)]
+        target_ms: Option<i64>,
+    },
+    BreakAction {
+        session_id: String,
+        action: String,
+    },
+    DismissNotice {
+        id: String,
     },
     Pause {
         id: String,

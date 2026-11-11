@@ -1,6 +1,6 @@
 <p align="center"><img src="assets/app-icon.svg" alt="Margin logo" width="76"></p>
 <h1 align="center">Margin</h1>
-<p align="center">A simple timer. A meaningful history.</p>
+<p align="center">Study time, recorded locally.</p>
 
 Margin is a small desktop app for keeping track of study time and seeing where the hours go. It runs locally, saves your sessions as you study, and turns your history into a useful record. There are no accounts or cloud services.
 
@@ -10,9 +10,9 @@ Choose a subject and a study type, then start. Reviewing calculus and practicing
 
 ## What it does
 
-- Stopwatch with pause, resume, restart recovery and optional notes.
+- Stopwatch, Pomodoro and Countdown with pause, resume, restart recovery and optional notes.
 - Subjects and study types you can create inline, rename, color and archive. Unused choices can be deleted.
-- A separate native mini timer, optional always-on-top, and fullscreen focus.
+- A separate, always-on-top native mini timer and fullscreen focus.
 - Editable session history, manual entries, subject and study-type filters.
 - Period totals, subject/type distribution, hourly activity and a study calendar.
 - Monthly and yearly Study Wrapped recaps based on recorded sessions.
@@ -33,9 +33,11 @@ Windows x64 packaging is configured for NSIS and MSI. The Windows workflow must 
 
 Type a subject beside the timer, choose a study type, and press Start. New names are created inline. Finish saves with one click; adding a note is optional. Use History to add forgotten time, correct a session or remove it.
 
-The small window icon opens the mini timer. Both windows control the same session. Closing the mini window leaves the timer alone. Closing the main window exits the app; an unfinished session is restored next time.
+Switch modes above the timer. Stopwatch counts up; Countdown stops at your chosen duration. Pomodoro saves each completed focus session and starts a short break, with a long break after every fourth completed focus session. Breaks never count toward study totals. Start each next focus session yourself. Focus, break and countdown lengths are editable from 1–240 minutes.
 
-Running time includes computer sleep and time while Margin is closed. Paused time does not count. If you forget to stop a session, finish it and edit its start or study minutes in History. Changing a session’s time replaces its pause intervals with a continuous manual entry; note-only edits preserve all intervals.
+The small window icon opens the always-pinned mini timer. Both windows control the same session. Closing the mini window leaves the timer alone. Closing the main window exits the app; an unfinished session is restored next time.
+
+Running time includes computer sleep and time while Margin is closed. Paused time does not count. Pomodoro and Countdown stop at their exact active-time target, including after sleep or restart; they cannot silently create further focus sessions. If you forget to stop a session, finish it and edit its start or study minutes in History. Changing a session’s time replaces its pause intervals with a continuous manual entry; note-only edits preserve all intervals.
 
 Space pauses or resumes when you are not typing or using a control. Command/Ctrl K focuses the subject, Command/Ctrl M opens the mini timer, Command/Ctrl 1 returns to Today, and Escape leaves fullscreen.
 
@@ -53,9 +55,9 @@ Screenshots show the actual macOS application using an isolated UI-verification 
 
 The SQLite database is stored in the operating system’s application-data directory under `app.margin.study`, outside the installation and source folders. On macOS this is `~/Library/Application Support/app.margin.study/`; on Windows it is normally `%APPDATA%\app.margin.study\`. Updates run versioned migrations without replacing your database.
 
-Settings → Data & backups exports all records as JSON, including any unfinished timer. CSV contains finished sessions with subjects, study types, UTC start/end times, active and paused seconds, notes and recording zones. Spreadsheet-formula prefixes in text are escaped in CSV.
+Settings → Data exports all records as JSON, including any unfinished timer. CSV contains finished sessions with subjects, study types, timer modes, UTC start/end times, active and paused seconds, notes and recording zones. Spreadsheet-formula prefixes in text are escaped in CSV.
 
-Restoring a JSON backup replaces current data after validation and confirmation. First finish or discard any active timer. Margin writes a complete safety backup before restoring, then applies the replacement in one SQLite transaction. Open safety backups shows the local folder. Backups are not uploaded anywhere.
+Restoring a JSON backup replaces current data after validation and confirmation. First finish or discard any active session, and finish or skip a break. Margin writes a complete safety backup before restoring, then applies the replacement in one SQLite transaction. Open safety backups shows the local folder. Backups are not uploaded anywhere.
 
 Local storage survives clearing browser data. It does not protect against a failed or lost computer. Export a backup to a place you keep safe.
 

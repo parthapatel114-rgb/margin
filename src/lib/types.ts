@@ -8,6 +8,25 @@ export interface Segment {
   start: number;
   end: number | null;
 }
+export type TimerMode = "stopwatch" | "pomodoro" | "countdown";
+export interface BreakState {
+  sessionId: string;
+  subjectId: string;
+  studyTypeId: string;
+  remainingMs: number;
+  runningSince: number | null;
+  totalMs: number;
+  long: boolean;
+}
+export interface TimerState {
+  cycle: number;
+  break: BreakState | null;
+  notice: {
+    id: string;
+    kind: "pomodoro" | "countdown" | "break" | "manual";
+    sessionId: string;
+  } | null;
+}
 export interface Session {
   id: string;
   subjectId: string;
@@ -19,6 +38,8 @@ export interface Session {
   timeZone: string;
   updatedAt: number;
   segments: Segment[];
+  timerMode: TimerMode;
+  targetMs: number | null;
 }
 export type Theme = "light" | "dark" | "warm" | "slate" | "forest" | "rose";
 export type Font = "inter" | "dm-sans" | "plex-mono";
@@ -28,6 +49,11 @@ export interface Settings {
   lastSubject: string;
   lastStudyType: string;
   alwaysOnTop: boolean;
+  timerMode: TimerMode;
+  focusMinutes: number;
+  shortBreakMinutes: number;
+  longBreakMinutes: number;
+  countdownMinutes: number;
 }
 export interface Snapshot {
   subjects: Subject[];
@@ -35,6 +61,7 @@ export interface Snapshot {
   sessions: Session[];
   settings: Settings;
   recoveredId: string | null;
+  timerState: TimerState;
   revision: number;
 }
 export type Command =
@@ -52,7 +79,20 @@ export type Command =
         | "delete_study_type";
       id: string;
     }
-  | { kind: "start"; subjectId: string; studyTypeId: string; timeZone: string }
+  | {
+      kind: "start";
+      subjectId: string;
+      studyTypeId: string;
+      timeZone: string;
+      timerMode: TimerMode;
+      targetMs: number | null;
+    }
+  | {
+      kind: "break_action";
+      sessionId: string;
+      action: "pause" | "resume" | "skip";
+    }
+  | { kind: "dismiss_notice"; id: string }
   | {
       kind:
         | "pause"

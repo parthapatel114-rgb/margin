@@ -19,7 +19,7 @@ A small desktop study journal. A timer in the foreground; a useful history accum
 
 Margin refers to the time made for learning and the small notes that accumulate into a record. Original mark: three offset vertical strokes with a small terminal square, suggesting recorded time and a page margin. Single-color construction works at 16px.
 
-Default: warm off-white, ink, muted sage; an editorial heading and large tabular timer. A narrow top navigation has Today, History, Insights. No sidebar. Supporting totals, a seven-day strip and recent sessions sit below the timer. All layouts use shared color, spacing, typography and focus tokens. Six full palettes, bundled Inter / DM Sans / IBM Plex Mono. No remote font requests.
+Default: warm off-white, ink, muted sage; an editorial heading and large tabular timer. A narrow top navigation has Today, History, Insights. No sidebar. On wide windows, a compact overview and recent sessions sit beside the timer; narrow windows stack in reading order. The November UI revision removes slogans, decorative footer copy and explanatory empty-state paragraphs. All layouts use shared color, spacing, typography and focus tokens. Six full palettes, bundled Inter / DM Sans / IBM Plex Mono. No remote font requests.
 
 ## Architecture and policies
 
@@ -36,3 +36,9 @@ SQLite lives in the OS application-data directory. WAL, foreign keys, full synch
 ## Scope
 
 Implement the eight phases in the supplied Project Brief.md. Optional tray and recap image export can be omitted to protect core reliability. Windows installers require a Windows runner; local macOS builds use ad-hoc signing without Developer ID or notarization unless credentials are available. Do not claim platform tests or publication that did not happen.
+
+## November UI revision
+
+Applied the installed [jakubkrehel interface skills](https://github.com/jakubkrehel/skills): better-interface, better-ui, better-typography, better-colors, better-accessibility, better-layout and better-writing. All existing screens share the revised tokens and control styles. Settings separates appearance, timer defaults, data and app details; infrequent detail stays behind native disclosure controls. The mini timer is always pinned and has no pin toggle, per the user’s request.
+
+Timer modes are a first-class choice beside the subject/type workflow. Pomodoro offers explicit focus and break durations, a four-focus cycle and automatic break transition. Starting the next focus remains explicit to prevent unrecorded absence becoming study time. Countdown is a single bounded session. See [UI review](ui-review.md) for evidence and unverified boundaries.

@@ -22,8 +22,12 @@ gh repo create margin-study --public --source=. --remote=origin --push
 Inspect the first Check and package workflow. Once it passes, create a version tag to prepare draft installers:
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 Review the draft release and its platform artifacts before publishing it. For signed releases, configure platform signing credentials using [Tauri’s distribution guides](https://v2.tauri.app/distribute/) and update the release workflow; never commit certificates, passwords or API keys.
+
+## 0.2.0
+
+Coordinated interface redesign; Stopwatch, Pomodoro and Countdown; persisted break/cycle recovery; always-pinned mini timer. Schema 3 upgrades existing session records. Version 1/2 JSON backups remain supported. The release contains no verification records. Older application archives are retained in `releases/`.

@@ -27,15 +27,7 @@ export function Subjects({
   const [removing, setRemoving] = useState<Subject | null>(null);
   return (
     <>
-      <Dialog
-        title={studyType ? "Your study types" : "Your subjects"}
-        onClose={onClose}
-      >
-        <p className="hint">
-          {studyType
-            ? "Choose how you spend your study time. Add your own types beside the timer."
-            : "Create subjects here or type a new one beside the timer. Archived subjects stay in your history."}
-        </p>
+      <Dialog title={studyType ? "Study types" : "Subjects"} onClose={onClose}>
         <div className="subject-list">
           {subjects.map((s) => (
             <div className="subject-row" key={s.id}>

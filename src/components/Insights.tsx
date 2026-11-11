@@ -107,7 +107,10 @@ function Trend({
       <div
         className="trend-bars"
         role="img"
-        aria-label={`Study duration by ${period === "all" ? "month" : period === "year" ? "week" : "day"}`}
+        aria-label={`Study duration by ${period === "all" ? "month" : period === "year" ? "week" : "day"}. ${entries
+          .filter(([, ms]) => ms > 0)
+          .map(([key, ms]) => `${key}: ${duration(ms)}`)
+          .join(", ")}`}
       >
         {entries.map(([key, ms]) => (
           <div
@@ -151,7 +154,9 @@ export function Insights({
   subjects,
   studyTypes,
   now,
+  onStart,
 }: {
+  onStart: () => void;
   sessions: Session[];
   subjects: Subject[];
   studyTypes: Subject[];
@@ -198,6 +203,11 @@ export function Insights({
   for (let day = yearStart; day < yearEnd; day = addDays(day, 1))
     cells.push(day);
   while (cells.length % 7) cells.push(null);
+  const inspectedDay = useMemo(() => {
+    if (!selectedDay) return null;
+    const start = +new Date(`${selectedDay}T00:00`);
+    return analyze(finished, start, addDays(start, 1), Infinity);
+  }, [selectedDay, finished]);
   const peak = Math.max(1, ...Object.values(calendar.days).map((d) => d.total));
   const totalHours = Math.max(1, ...data.hours);
   const label =
@@ -212,11 +222,7 @@ export function Insights({
   return (
     <>
       <div className="page-heading">
-        <div>
-          <span className="eyebrow">A LITTLE PERSPECTIVE</span>
-          <h1>Where the hours go.</h1>
-          <p>Patterns from the time you’ve made for learning.</p>
-        </div>
+        <h1 tabIndex={-1}>Insights</h1>
         <button className="secondary" onClick={() => setRecap(true)}>
           <BookOpen size={16} />
           Study Wrapped <ArrowRight size={14} />
@@ -263,36 +269,40 @@ export function Insights({
           <strong>{duration(data.total)}</strong>
         </div>
         <div>
-          <span>Days with study time</span>
-          <strong>
-            {data.activeDays}
-            <small> days</small>
-          </strong>
+          <span>Active days</span>
+          <strong>{data.activeDays}</strong>
         </div>
         <div>
           <span>Average session</span>
           <strong>{duration(data.average)}</strong>
         </div>
         <div>
-          <span>Sessions in period</span>
+          <span>Sessions</span>
           <strong>{data.count}</strong>
         </div>
       </div>
       {data.total === 0 ? (
         <div className="empty compact">
-          <span className="empty-mark">—</span>
-          <h2>Time makes the picture.</h2>
-          <p>
-            {finished.length
-              ? "There’s no recorded time in this period. Try an earlier one."
-              : "Finish a session to begin seeing your study patterns. Nothing here is estimated or invented."}
-          </p>
+          <h2>No study time in this period</h2>
+          {finished.length ? (
+            <button
+              className="secondary"
+              onClick={() => setAnchor(shiftPeriod(period, anchor, -1))}
+              disabled={period === "all"}
+            >
+              Previous period
+            </button>
+          ) : (
+            <button className="secondary" onClick={onStart}>
+              Start a session
+            </button>
+          )}
         </div>
       ) : (
         <>
           <section className="insight-section">
             <div className="section-heading">
-              <h2>Your study rhythm</h2>
+              <h2>Study time</h2>
               <span>{duration(data.total)} recorded</span>
             </div>
             <Trend data={data} from={from} to={to} period={period} />
@@ -340,7 +350,12 @@ export function Insights({
               <div
                 className="hour-bars"
                 role="img"
-                aria-label="Study time in each hour"
+                aria-label={`Study time by hour. ${data.hours
+                  .map((ms, h) =>
+                    ms > 0 ? `${hourLabel(h)}: ${duration(ms)}` : null,
+                  )
+                  .filter(Boolean)
+                  .join(", ")}`}
               >
                 {data.hours.map((ms, h) => (
                   <div title={`${hourLabel(h)}: ${duration(ms)}`} key={h}>
@@ -371,10 +386,19 @@ export function Insights({
       )}
       <section className="insight-section calendar-section">
         <div className="section-heading">
-          <h2>A year of showing up</h2>
-          <span>
-            {year} · {calendar.activeDays} active days
-          </span>
+          <h2>Study calendar</h2>
+          <div>
+            <span className="muted">
+              {year} · {calendar.activeDays} active{" "}
+              {calendar.activeDays === 1 ? "day" : "days"}
+            </span>
+            <button
+              className="secondary"
+              onClick={() => setSelectedDay(dayKey(now))}
+            >
+              View day
+            </button>
+          </div>
         </div>
         <div className="calendar-scroll">
           <div className="calendar-months" aria-hidden="true">
@@ -417,7 +441,7 @@ export function Insights({
         </div>
         <div className="calendar-footer">
           <span>
-            Calendar days and hours use{" "}
+            Time zone:
             {Intl.DateTimeFormat().resolvedOptions().timeZone}.
           </span>
           <span>
@@ -437,17 +461,22 @@ export function Insights({
           onClose={() => setSelectedDay(null)}
         >
           <p className="dialog-copy">
-            {duration(calendar.days[selectedDay]?.total ?? 0)} recorded.
+            {duration(inspectedDay?.total ?? 0)} recorded.
           </p>
-          {calendar.days[selectedDay] ? (
-            <SubjectBreakdown
-              data={{
-                ...calendar,
-                total: calendar.days[selectedDay].total,
-                subjects: calendar.days[selectedDay].subjects,
+          <label className="inspect-date">
+            Date
+            <input
+              aria-label="Inspect date"
+              type="date"
+              max={dayKey(now)}
+              value={selectedDay}
+              onChange={(e) => {
+                if (e.target.value) setSelectedDay(e.target.value);
               }}
-              subjects={subjects}
             />
+          </label>
+          {inspectedDay?.total ? (
+            <SubjectBreakdown data={inspectedDay} subjects={subjects} />
           ) : (
             <p className="hint">No study time was recorded on this day.</p>
           )}
@@ -491,7 +520,7 @@ function Wrapped({
     year: "numeric",
   });
   return (
-    <Dialog title="Your Study Wrapped" onClose={onClose} wide>
+    <Dialog title="Study Wrapped" onClose={onClose} wide>
       <div className="period-row recap-controls">
         <div className="segmented">
           {(["month", "year"] as const).map((p) => (
@@ -541,11 +570,7 @@ function Wrapped({
             </span>
             {page === 0 ? (
               <>
-                <h3>
-                  You made time
-                  <br />
-                  for learning.
-                </h3>
+                <h3>Total study time</h3>
                 <strong className="recap-number">
                   {(data.total / 3600000).toLocaleString([], {
                     maximumFractionDigits: 1,
@@ -553,17 +578,12 @@ function Wrapped({
                   <small> hours</small>
                 </strong>
                 <p>
-                  {data.count} sessions, across {data.activeDays} days. One
-                  session at a time.
+                  {data.count} sessions, across {data.activeDays} days.
                 </p>
               </>
             ) : page === 1 ? (
               <>
-                <h3>
-                  A subject you
-                  <br />
-                  kept returning to.
-                </h3>
+                <h3>Top subject</h3>
                 <strong className="recap-subject">
                   {ranked[0]?.subject?.name}
                 </strong>
@@ -575,18 +595,11 @@ function Wrapped({
               </>
             ) : (
               <>
-                <h3>
-                  Your time
-                  <br />
-                  has a rhythm.
-                </h3>
+                <h3>Most active hour</h3>
                 <strong className="recap-number">
                   {hourLabel(favoriteHour)}
                 </strong>
-                <p>
-                  Your busiest study hour, with{" "}
-                  {duration(data.hours[favoriteHour])} recorded.
-                </p>
+                <p> {duration(data.hours[favoriteHour])} recorded.</p>
                 <div className="recap-facts">
                   <div>
                     <span>Longest session in this period</span>
@@ -629,11 +642,10 @@ function Wrapped({
       ) : (
         <div className="empty">
           <BookOpen size={30} />
-          <h2>A story is taking shape.</h2>
+          <h2>Not enough sessions for a recap</h2>
           <p>
-            A recap becomes available after at least three sessions on three
-            different days in this {period}. Keep recording, or explore an
-            earlier period.
+            Record three sessions across three days in this {period}, or select
+            an earlier period.
           </p>
         </div>
       )}

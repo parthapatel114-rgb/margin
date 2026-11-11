@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowUpRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { dayKey, duration, elapsed } from "../lib/analytics";
 import type { Mutate, Session, Subject } from "../lib/types";
 import { Confirm } from "./Dialog";
@@ -41,7 +41,13 @@ export function SessionRows({
                 {" · " +
                   (studyTypes.find((t) => t.id === s.studyTypeId)?.name ??
                     "Studying") +
-                  (s.source === "manual" ? " · Manual entry" : "")}
+                  (s.source === "manual"
+                    ? " · Manual"
+                    : s.timerMode === "pomodoro"
+                      ? " · Pomodoro"
+                      : s.timerMode === "countdown"
+                        ? " · Countdown"
+                        : "")}
                 {s.timeZone !== Intl.DateTimeFormat().resolvedOptions().timeZone
                   ? ` · Recorded in ${s.timeZone}`
                   : ""}
@@ -117,14 +123,10 @@ export function History({
   return (
     <>
       <div className="page-heading">
-        <div>
-          <span className="eyebrow">YOUR STUDY JOURNAL</span>
-          <h1>Time, remembered.</h1>
-          <p>Every session has a place here.</p>
-        </div>
+        <h1 tabIndex={-1}>History</h1>
         <button className="secondary" onClick={onAdd}>
           <Plus size={16} />
-          Add study time
+          Add time
         </button>
       </div>
       <div className="filters">
@@ -208,20 +210,26 @@ export function History({
         ))
       ) : (
         <div className="empty">
-          <span className="empty-mark">—</span>
           <h2>
-            {sessions.length
-              ? "No sessions in this view."
-              : "A history worth keeping."}
+            {sessions.length ? "No matching sessions" : "No sessions yet"}
           </h2>
-          <p>
-            {sessions.length
-              ? "Try another subject or date range."
-              : "Your finished sessions will appear here. You can also add study time you forgot to record."}
-          </p>
-          <button className="text-button" onClick={onAdd}>
-            Add your first session <ArrowUpRight size={15} />
-          </button>
+          {sessions.length ? (
+            <button
+              className="secondary"
+              onClick={() => {
+                setSubject("");
+                setStudyType("");
+                setFrom("");
+                setTo("");
+              }}
+            >
+              Clear filters
+            </button>
+          ) : (
+            <button className="secondary" onClick={onAdd}>
+              Add time
+            </button>
+          )}
         </div>
       )}
       {filtered.length > limit && (

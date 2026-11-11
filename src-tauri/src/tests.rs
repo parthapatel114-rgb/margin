@@ -20,6 +20,8 @@ fn subject(db: &mut Database) -> String {
 fn start(db: &mut Database, sid: &str, at: i64) -> String {
     db.mutate(
         Command::Start {
+            timer_mode: "stopwatch".into(),
+            target_ms: None,
             study_type_id: "studying".into(),
             subject_id: sid.into(),
             time_zone: "America/New_York".into(),
@@ -39,6 +41,8 @@ fn timer_pause_resume_finish_and_duplicate_guard() {
     assert!(db
         .mutate(
             Command::Start {
+                timer_mode: "stopwatch".into(),
+                target_ms: None,
                 study_type_id: "studying".into(),
                 subject_id: sid,
                 time_zone: "UTC".into()
@@ -211,6 +215,8 @@ fn study_types_persist_rename_archive_and_export() {
     let session = db
         .mutate(
             Command::Start {
+                timer_mode: "stopwatch".into(),
+                target_ms: None,
                 subject_id: sid,
                 study_type_id: type_id.clone(),
                 time_zone: "UTC".into(),
@@ -388,4 +394,225 @@ fn atomic_backup_writes_replace_complete_contents() {
     crate::write_atomic(&file, b"{\"complete\":true}").unwrap();
     assert_eq!(std::fs::read(&file).unwrap(), b"{\"complete\":true}");
     assert_eq!(std::fs::read_dir(tmp.path()).unwrap().count(), 1);
+}
+
+fn timed(db: &mut Database, sid: &str, mode: &str, at: i64) -> String {
+    db.mutate(
+        Command::Start {
+            subject_id: sid.into(),
+            study_type_id: "reviewing".into(),
+            time_zone: "UTC".into(),
+            timer_mode: mode.into(),
+            target_ms: Some(60_000),
+        },
+        at,
+    )
+    .unwrap()
+    .sessions
+    .iter()
+    .find(|s| s.ended_at.is_none())
+    .unwrap()
+    .id
+    .clone()
+}
+#[test]
+fn countdown_finishes_at_exact_target_after_a_late_tick() {
+    let mut db = database();
+    let sid = subject(&mut db);
+    let id = timed(&mut db, &sid, "countdown", 1000);
+    assert!(!db.reconcile(60_000).unwrap());
+    assert!(db.reconcile(600_000).unwrap());
+    let s = db.snapshot().unwrap();
+    assert_eq!(s.sessions[0].id, id);
+    assert_eq!(s.sessions[0].ended_at, Some(61_000));
+    assert_eq!(s.sessions[0].segments[0].end, Some(61_000));
+    assert!(s.timer_state.break_state.is_none());
+    assert_eq!(s.timer_state.notice.unwrap().kind, "countdown");
+    assert!(!db.reconcile(600_001).unwrap());
+}
+#[test]
+fn countdown_pauses_shift_deadline_without_counting_the_gap() {
+    let mut db = database();
+    let sid = subject(&mut db);
+    let id = timed(&mut db, &sid, "countdown", 1000);
+    db.mutate(Command::Pause { id: id.clone() }, 11_000)
+        .unwrap();
+    assert!(!db.reconcile(120_000).unwrap());
+    db.mutate(Command::Resume { id }, 121_000).unwrap();
+    assert!(db.reconcile(500_000).unwrap());
+    let s = db.snapshot().unwrap().sessions.remove(0);
+    assert_eq!(s.ended_at, Some(171_000));
+    assert_eq!(
+        s.segments
+            .iter()
+            .map(|p| p.end.unwrap() - p.start)
+            .sum::<i64>(),
+        60_000
+    );
+}
+#[test]
+fn pomodoro_breaks_are_separate_from_study_time() {
+    let mut db = database();
+    let sid = subject(&mut db);
+    db.mutate(
+        Command::Setting {
+            key: "shortBreakMinutes".into(),
+            value: "1".into(),
+        },
+        1000,
+    )
+    .unwrap();
+    let id = timed(&mut db, &sid, "pomodoro", 1000);
+    db.reconcile(61_000).unwrap();
+    let s = db.snapshot().unwrap();
+    assert_eq!(s.timer_state.cycle, 1);
+    assert_eq!(
+        s.timer_state.break_state.unwrap().running_since,
+        Some(61_000)
+    );
+    assert_eq!(s.sessions[0].segments[0].end, Some(61_000));
+    db.mutate(
+        Command::BreakAction {
+            session_id: id.clone(),
+            action: "pause".into(),
+        },
+        81_000,
+    )
+    .unwrap();
+    assert!(!db.reconcile(500_000).unwrap());
+    assert_eq!(
+        db.timer_state().unwrap().break_state.unwrap().remaining_ms,
+        40_000
+    );
+    db.mutate(
+        Command::BreakAction {
+            session_id: id,
+            action: "resume".into(),
+        },
+        501_000,
+    )
+    .unwrap();
+    db.reconcile(541_000).unwrap();
+    let s = db.snapshot().unwrap();
+    assert!(s.timer_state.break_state.is_none());
+    assert_eq!(s.sessions.len(), 1);
+    assert_eq!(s.timer_state.notice.unwrap().kind, "break");
+}
+#[test]
+fn every_fourth_pomodoro_has_a_long_break() {
+    let mut db = database();
+    let sid = subject(&mut db);
+    for n in 0..4 {
+        let at = 1000 + n * 61_000;
+        let id = timed(&mut db, &sid, "pomodoro", at);
+        db.reconcile(at + 60_000).unwrap();
+        let b = db.timer_state().unwrap().break_state.unwrap();
+        assert_eq!(b.long, n == 3);
+        assert_eq!(b.total_ms, if n == 3 { 900_000 } else { 300_000 });
+        db.mutate(
+            Command::BreakAction {
+                session_id: id,
+                action: "skip".into(),
+            },
+            at + 60_000,
+        )
+        .unwrap();
+    }
+    assert_eq!(db.snapshot().unwrap().sessions.len(), 4);
+}
+#[test]
+fn timed_restart_does_not_invent_more_focus_sessions() {
+    let temp = tempfile::tempdir().unwrap();
+    let p = temp.path().join("restart.db");
+    {
+        let mut db = Database::open(&p).unwrap();
+        let sid = subject(&mut db);
+        timed(&mut db, &sid, "pomodoro", 1000);
+    }
+    let mut db = Database::open(&p).unwrap();
+    assert!(db.recovered_id.is_some());
+    db.reconcile(86_400_000).unwrap();
+    let s = db.snapshot().unwrap();
+    assert_eq!(s.sessions.len(), 1);
+    assert_eq!(s.sessions[0].ended_at, Some(61_000));
+    assert!(s.timer_state.break_state.is_none());
+    assert!(s.recovered_id.is_none());
+}
+#[test]
+fn backup_roundtrip_preserves_paused_break_and_timer_configuration() {
+    let mut db = database();
+    let sid = subject(&mut db);
+    let key = timed(&mut db, &sid, "pomodoro", 1000);
+    db.reconcile(61_000).unwrap();
+    db.mutate(
+        Command::BreakAction {
+            session_id: key,
+            action: "pause".into(),
+        },
+        71_000,
+    )
+    .unwrap();
+    let backup = db.backup().unwrap();
+    validate_backup(&backup, now()).unwrap();
+    let mut other = database();
+    other.restore(backup, now()).unwrap();
+    let b = other.timer_state().unwrap().break_state.unwrap();
+    assert_eq!(b.remaining_ms, 290_000);
+    assert!(b.running_since.is_none());
+}
+#[test]
+fn timer_settings_and_targets_are_validated() {
+    let mut db = database();
+    let sid = subject(&mut db);
+    assert!(db
+        .mutate(
+            Command::Setting {
+                key: "countdownMinutes".into(),
+                value: "0".into()
+            },
+            1000
+        )
+        .is_err());
+    assert!(db
+        .mutate(
+            Command::Start {
+                subject_id: sid,
+                study_type_id: "studying".into(),
+                time_zone: "UTC".into(),
+                timer_mode: "countdown".into(),
+                target_ms: Some(0)
+            },
+            1000
+        )
+        .is_err());
+    assert!(db
+        .mutate(
+            Command::Setting {
+                key: "alwaysOnTop".into(),
+                value: "false".into()
+            },
+            1000
+        )
+        .is_err());
+}
+#[test]
+fn migration_v2_preserves_an_active_stopwatch_and_pins_legacy_settings() {
+    let tmp = tempfile::tempdir().unwrap();
+    let p = tmp.path().join("v2.db");
+    {
+        let c = rusqlite::Connection::open(&p).unwrap();
+        c.execute_batch(include_str!("../migrations/001_initial.sql"))
+            .unwrap();
+        c.execute_batch(include_str!("../migrations/002_study_types.sql"))
+            .unwrap();
+        c.execute_batch("INSERT INTO subjects VALUES('subject','Calculus','#66816C',0);INSERT INTO sessions VALUES('active','subject',1000,NULL,'kept','timer','UTC',1000,'studying');INSERT INTO segments VALUES('active',1000,NULL);UPDATE settings SET value='false' WHERE key='alwaysOnTop';").unwrap();
+    }
+    let db = Database::open(&p).unwrap();
+    let s = db.snapshot().unwrap();
+    assert_eq!(s.recovered_id.as_deref(), Some("active"));
+    assert_eq!(s.sessions[0].timer_mode, "stopwatch");
+    assert_eq!(s.sessions[0].note, "kept");
+    assert!(s.sessions[0].target_ms.is_none());
+    assert!(s.settings.always_on_top);
+    assert_eq!(s.settings.focus_minutes, 25);
 }

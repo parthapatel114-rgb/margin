@@ -36,8 +36,16 @@ A safety JSON snapshot is written using a temporary file in the destination dire
 
 Tauri controls the mini window and fullscreen. A narrow capability file grants only the window operations needed by the local windows. File selection/export and opening the safety-backup directory go through Rust and native plugins. No HTTP plugin, remote font, network telemetry, account system or cloud service is included. A CSP restricts packaged content to local assets and Tauri IPC.
 
-The main window remembers size, position and maximized state. The mini window is fixed-size, draggable and optionally always-on-top. Closing it does not change the session. Closing the main window exits all windows; stored session state remains available on the next launch.
+The main window remembers size, position and maximized state. The mini window is fixed-size, draggable and always-on-top. Closing it does not change the session. Closing the main window exits all windows; stored session state remains available on the next launch.
 
 ## Packaging
 
 macOS and Windows are configured. The local machine can exercise Apple Silicon macOS. GitHub-hosted Windows and Intel macOS builds are configured but must actually run before release claims are made. Signing/notarization are separate release work and are not claimed by an ad-hoc-signed local build.
+
+## Timer modes, schema 3
+
+Migration 3 adds timer mode and optional target duration to sessions, timer preferences, and a single persisted runtime row for Pomodoro cycles, break state and completion notices. Existing sessions become stopwatches with their original intervals unchanged. Version 3 JSON backups preserve these fields; versions 1 and 2 remain importable. Old pin preferences are accepted for backup compatibility but the mini window always uses the native always-on-top flag.
+
+A native 250 ms reconciliation loop checks the one active timed session, independently of either webview’s render cadence. It closes the last interval at its exact remaining-active-time deadline. A late tick or restart uses that deadline rather than the wake time. A Pomodoro break starts at that timestamp; an already elapsed break completes without starting another session. Breaks live outside the sessions table and cannot enter analytics. Paused sessions and breaks remain paused across restart. Commands also reconcile before acting so Finish/Pause races at a deadline return the completed snapshot. Snapshot revision checks prevent an older response overwriting newer state.
+
+The live analytics view caps a timed session at its target even between native completion ticks. Manual changes to timing replace the interval model and clear its timer mode/target; note-only edits preserve them.
