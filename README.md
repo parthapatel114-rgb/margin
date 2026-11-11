@@ -6,7 +6,15 @@ Margin is a small desktop app for keeping track of study time and seeing where t
 
 Choose a subject and a study type, then start. Reviewing calculus and practicing calculus belong to the same subject, but tell different stories about how you spend your time. You can use the built-in study types or add your own.
 
-<p align="center"><img src="docs/screenshots/0.4/today-carbon.png" alt="Margin’s fullscreen Today workspace" width="880"></p>
+<p align="center"><img src="docs/screenshots/0.4/today-carbon.png" alt="Margin 0.4 Today workspace in the Carbon and Fern theme" width="880"></p>
+
+<details>
+<summary>Light theme and appearance options</summary>
+
+<p align="center"><img src="docs/screenshots/0.4/today-paper.png" alt="Margin 0.4 Today workspace in the Paper and Olive theme" width="880"></p>
+<p align="center"><img src="docs/screenshots/0.4/themes.png" alt="Margin appearance settings with three Carbon themes, three Paper themes and three font choices" width="880"></p>
+
+</details>
 
 ## What it does
 
@@ -20,7 +28,7 @@ Choose a subject and a study type, then start. Reviewing calculus and practicing
 - Six coordinated three-color themes: Carbon with Sage, Fern or Atlantic; Paper with Olive, Ochre or Plum. Editorial, Humanist and Mono text options, all offline.
 - JSON backups, CSV history and validated restore with a safety backup.
 
-<p align="center"><img src="docs/screenshots/0.4/mini.png" alt="Margin’s native mini timer" width="348"></p>
+<p align="center"><img src="docs/screenshots/0.4/mini.png" alt="Margin 0.4 always-on-top native mini timer" width="348"></p>
 
 ## Install
 
@@ -48,7 +56,7 @@ Choose Week, Month, Year, All time or a custom range. Filter by subject and stud
 
 Statistics use finished sessions. Today also includes the current timer. Active intervals are split at day and hour boundaries, so a session across midnight or a pause contributes only its actual time to each bucket. Calendar views use the computer’s current time zone; changing zones can move history between days without changing elapsed totals. Original recording zones are preserved.
 
-<p align="center"><img src="docs/screenshots/0.4/statistics.png" alt="Margin’s fullscreen statistics overview" width="880"></p>
+<p align="center"><img src="docs/screenshots/0.4/statistics.png" alt="Margin 0.4 statistics overview in the Paper and Olive theme" width="880"></p>
 
 Screenshots show the actual macOS application using an isolated UI-verification database. Test sessions are not included in an installed app or the source repository.
 
